@@ -31,7 +31,7 @@ async function startSearch() {
     const anonymousUrl = document.getElementById('anonymousUrl').value.trim();
 
     if (!clientId || !clientSecret) {
-        showError('Client ID와 Client Secret을 입력하세요.');
+        showError('API 설정에서 Client ID와 Client Secret을 입력한 뒤 사용하세요.');
         return;
     }
 
