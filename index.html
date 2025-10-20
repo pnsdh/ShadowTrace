@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowTrace - FFLogs Anonymous Finder</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h1>ShadowTrace</h1>
+            <div class="header-controls">
+                <div class="checkbox-section header-checkbox" id="searchAllFightsSection">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="searchAllFights">
+                        <span class="checkbox-text">전체 분석</span>
+                    </label>
+                    <div class="tooltip">
+                        <strong style="color: #d32f2f;">해당 기능의 사용은 기본적으로 비추천합니다.</strong><br>
+                        해당 Report의 업로더가 분석 대상이라는 확신이 있을 경우에만 사용을 권합니다.<br><br>
+                        Fight가 지정된 Report를 분석 할 때, 결과가 나오지 않으면 Report 안의 다른 Fight도 분석합니다.<br>
+                        (즉, Fight가 입력되지 않은 URL 분석과 동일한 동작을 합니다.)
+                    </div>
+                </div>
+                <button class="header-settings-btn" onclick="openCacheModal()">💾 캐시 데이터 관리</button>
+                <button class="header-settings-btn" onclick="openSettingsModal()">⚙️ API 설정</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <label for="anonymousUrl">익명 로그 URL</label>
+            <input type="text" id="anonymousUrl" placeholder="https://ko.fflogs.com/reports/a:1LnyA38TDGQaMxdV">
+            <p class="help-text">'?fight=7' 또는 '?fight=last'같은 파라미터가 있는, 특정 전투에 관한 URL를 분석하는걸 추천합니다.</p>
+        </div>
+
+        <button id="searchBtn" onclick="startSearch()">원본 로그 찾기</button>
+        <button id="stopBtn" onclick="stopSearch()">⏸ 검색 중단</button>
+
+        <div id="apiUsage"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="status" id="status">로그 정보를 가져오는 중...</div>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="results" id="results">
+            <div id="resultsList"></div>
+        </div>
+    </div>
+
+    <!-- API 설정 모달 -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>API 설정</h2>
+                <span class="modal-close" onclick="closeSettingsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="api-setup">
+                    <p><strong>첫 사용 시:</strong> FFLogs API 클라이언트를 생성하세요.</p>
+                    <p>1. <a href="https://www.fflogs.com/api/clients/" target="_blank">FFLogs API Clients</a> 페이지에서 "Create Client" 클릭</p>
+                    <p>2. 클라이언트 생성 양식 작성:</p>
+                    <p style="margin-left: 20px;">
+                        • <strong>Name:</strong> 아무 이름이나 입력 (예: ShadowTrace)<br>
+                        • <strong>Redirect URLs:</strong> 비워두기, 혹은 아무 URL<br>
+                        • <strong>Public:</strong> 체크 해제 (비공개로 유지)
+                    </p>
+                    <p>3. 생성된 Client ID와 Client Secret을 아래에 입력</p>
+                    <p style="color: #d32f2f; font-size: 12px;">⚠️ Client Secret은 다시 확인할 수 없으니 안전하게 보관하세요</p>
+                </div>
+
+                <div class="section">
+                    <label for="clientId">Client ID</label>
+                    <input type="text" id="clientId" placeholder="your-client-id">
+                </div>
+
+                <div class="section">
+                    <label for="clientSecret">Client Secret</label>
+                    <input type="text" id="clientSecret" placeholder="your-client-secret">
+                </div>
+
+                <button onclick="saveSettings()" class="save-settings-btn">💾 설정 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 캐시 관리 모달 -->
+    <div id="cacheModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>캐시 데이터 관리</h2>
+                <span class="modal-close" onclick="closeCacheModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="cacheInfo"></div>
+                <div class="cache-actions">
+                    <button onclick="exportCache()" class="cache-action-btn cache-export-btn">
+                        📥 내보내기
+                    </button>
+                    <button type="button" class="cache-action-btn cache-import-btn" onclick="document.getElementById('cacheImportInput').click()">
+                        📤 가져오기
+                    </button>
+                    <input type="file" id="cacheImportInput" accept=".json,.gz" onchange="handleImportCache(event)" style="display: none;">
+                    <button onclick="clearAllCache()" class="cache-action-btn cache-clear-btn">🗑️ 전체 삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 확인 다이얼로그 모달 -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="confirmTitle">확인</h2>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage"></p>
+                <div class="confirm-buttons">
+                    <button id="confirmYes" class="confirm-btn">확인</button>
+                    <button id="confirmNo" class="cancel-btn">취소</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
