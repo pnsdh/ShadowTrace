@@ -234,6 +234,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 모달 외부 클릭 이벤트 설정
     setupModalClickOutside();
+
+    // 익명 로그 URL 입력창에 자동 포커스
+    document.getElementById('anonymousUrl').focus();
 });
 
 // Enter 키 지원

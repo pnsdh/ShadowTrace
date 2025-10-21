@@ -63,21 +63,31 @@ export function showConfirm(title, message, onlyConfirm = false) {
         modal.classList.add('active');
 
         const handleYes = () => {
-            modal.classList.remove('active');
-            yesBtn.removeEventListener('click', handleYes);
-            noBtn.removeEventListener('click', handleNo);
+            cleanup();
             resolve(true);
         };
 
         const handleNo = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        const handleEnter = (e) => {
+            if (e.key === 'Enter') {
+                handleYes();
+            }
+        };
+
+        const cleanup = () => {
             modal.classList.remove('active');
             yesBtn.removeEventListener('click', handleYes);
             noBtn.removeEventListener('click', handleNo);
-            resolve(false);
+            document.removeEventListener('keypress', handleEnter);
         };
 
         yesBtn.addEventListener('click', handleYes);
         noBtn.addEventListener('click', handleNo);
+        document.addEventListener('keypress', handleEnter);
     });
 }
 
