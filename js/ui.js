@@ -82,6 +82,16 @@ export async function displayResults(matches, api, allRankingsData, rankingCache
     const resultsEl = document.getElementById('results');
     const resultsListEl = document.getElementById('resultsList');
 
+    // 익명 로그 URL에서 서브도메인 추출
+    const anonymousUrlInput = document.getElementById('anonymousUrl').value.trim();
+    let subdomain = 'www';
+    if (anonymousUrlInput) {
+        const urlMatch = anonymousUrlInput.match(/https?:\/\/([^.]+)\.fflogs\.com/);
+        if (urlMatch) {
+            subdomain = urlMatch[1];
+        }
+    }
+
     if (matches.length === 0 && !appendMode) {
         // 캐시 업데이트 필요 여부 확인
         let showRefreshButton = false;
@@ -345,10 +355,10 @@ export async function displayResults(matches, api, allRankingsData, rankingCache
                             전투 시간: <strong>${durationSec}초</strong>
                         </div>
                         <div class="result-links">
-                            <a href="https://ko.fflogs.com/reports/${anonymousReportCode}#fight=${group.anonymousFightId}" target="_blank" class="result-link-btn anonymous-log">
+                            <a href="https://${subdomain}.fflogs.com/reports/${anonymousReportCode}#fight=${group.anonymousFightId}" target="_blank" class="result-link-btn anonymous-log">
                                 🔒 익명 로그
                             </a>
-                            <a href="https://ko.fflogs.com/reports/${group.reportCode}#fight=${group.fightID}" target="_blank" class="result-link-btn public-log">
+                            <a href="https://${subdomain}.fflogs.com/reports/${group.reportCode}#fight=${group.fightID}" target="_blank" class="result-link-btn public-log">
                                 📊 원본 로그
                             </a>
                         </div>
