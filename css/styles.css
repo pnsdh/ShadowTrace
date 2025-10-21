@@ -440,6 +440,20 @@ button:disabled {
     display: block;
 }
 
+.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 15px;
+    border-radius: 6px;
+    margin-top: 20px;
+    border-left: 4px solid #4caf50;
+    display: none;
+}
+
+.success.active {
+    display: block;
+}
+
 .help-text {
     font-size: 12px;
     color: var(--text-light);

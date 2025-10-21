@@ -1,6 +1,6 @@
 import { STORAGE_KEYS } from './constants.js';
 import { FFLogsAPI } from './api.js';
-import { showError } from './ui.js';
+import { showError, showSuccess } from './ui.js';
 import { closeSettingsModal } from './modal.js';
 
 /**
@@ -22,7 +22,7 @@ export function saveSettings() {
 
     saveApiKeys();
     closeSettingsModal();
-    showError('설정이 저장되었습니다. ✅');
+    showSuccess('설정이 저장되었습니다. ✅');
 }
 
 /**

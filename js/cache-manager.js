@@ -1,4 +1,4 @@
-import { showError, updateCacheDisplay } from './ui.js';
+import { showError, showSuccess, updateCacheDisplay } from './ui.js';
 import { showConfirm } from './modal.js';
 
 /**
@@ -62,7 +62,7 @@ export async function refreshCacheAndSearch(rankingCache, lastSearchParams, star
     await rankingCache.clearEncounter(encounterId, region, partition);
     await updateCacheDisplay(rankingCache);
 
-    showError('캐시를 삭제했습니다. 재검색을 시작합니다...');
+    showSuccess('캐시를 삭제했습니다. 재검색을 시작합니다...');
 
     // 기존 검색 재실행
     await startSearchFn();
@@ -79,6 +79,31 @@ export async function exportCache(rankingCache) {
         if (exportData.length === 0) {
             showError('내보낼 캐시 데이터가 없습니다.');
             return;
+        }
+
+        // 내보내기 항목 정리 (encounter별 그룹화)
+        const encounterGroups = new Map();
+        for (const entry of exportData) {
+            const encounterName = entry.data.encounterName || 'Unknown';
+            const region = entry.data.region || '';
+            const partition = entry.data.partition || 'default';
+            const partitionNum = partition === 'default' ? null : partition;
+
+            let partitionDisplay;
+            if (entry.data.partitionName) {
+                partitionDisplay = `P${partitionNum} - ${entry.data.partitionName}`;
+            } else if (partitionNum) {
+                partitionDisplay = `P${partitionNum}`;
+            } else {
+                partitionDisplay = 'P?';
+            }
+
+            const displayKey = `${encounterName}, ${region}, ${partitionDisplay}`;
+
+            if (!encounterGroups.has(displayKey)) {
+                encounterGroups.set(displayKey, 0);
+            }
+            encounterGroups.set(displayKey, encounterGroups.get(displayKey) + 1);
         }
 
         const jsonString = JSON.stringify(exportData);
@@ -101,11 +126,25 @@ export async function exportCache(rankingCache) {
         a.click();
         URL.revokeObjectURL(url);
 
-        // 압축 비율 표시
+        // 압축 비율 계산
         const originalKB = (originalSize / 1024).toFixed(1);
         const compressedKB = (compressedBlob.size / 1024).toFixed(1);
         const ratio = ((1 - compressedBlob.size / originalSize) * 100).toFixed(0);
-        showError(`캐시 ${exportData.length}개 항목을 내보냈습니다<br>${originalKB}KB → ${compressedKB}KB (${ratio}% 압축)`);
+
+        // 상세 내역 표시
+        let message = `<strong>캐시 내보내기 완료</strong><br><br>`;
+        message += `총 ${exportData.length}개 항목<br>`;
+        message += `압축: ${originalKB}KB → ${compressedKB}KB (${ratio}% 감소)<br>`;
+
+        if (encounterGroups.size > 0) {
+            message += `<br><strong>내보낸 항목:</strong><br>`;
+            const sortedGroups = Array.from(encounterGroups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+            sortedGroups.forEach(([displayKey, count]) => {
+                message += `• ${displayKey}: ${count}개 페이지<br>`;
+            });
+        }
+
+        await showConfirm('내보내기 완료', message, true); // 확인 버튼만 표시
     } catch (e) {
         console.error('캐시 내보내기 실패:', e);
         showError('캐시 내보내기에 실패했습니다.');

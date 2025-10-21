@@ -47,13 +47,24 @@ export function hideLoading() {
 
 export function showError(message) {
     const errorEl = document.getElementById('error');
-    errorEl.textContent = message;
+    errorEl.innerHTML = message;
     errorEl.classList.add('active');
     setTimeout(() => errorEl.classList.remove('active'), 5000);
 }
 
 export function hideError() {
     document.getElementById('error').classList.remove('active');
+}
+
+export function showSuccess(message) {
+    const successEl = document.getElementById('success');
+    successEl.innerHTML = message;
+    successEl.classList.add('active');
+    setTimeout(() => successEl.classList.remove('active'), 5000);
+}
+
+export function hideSuccess() {
+    document.getElementById('success').classList.remove('active');
 }
 
 // 캐시 정보 표시
