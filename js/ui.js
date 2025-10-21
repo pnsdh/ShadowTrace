@@ -1,4 +1,4 @@
-import { jobNameMap, serverNameMap, ANONYMOUS_NAMES } from './constants.js';
+import { jobNameMap, serverNameMap, ANONYMOUS_NAMES, RATE_LIMIT_CONSTANTS } from './constants.js';
 
 // ===== 헬퍼 함수 =====
 function translateJobName(englishName) {
@@ -32,9 +32,16 @@ function formatLocalTime(timestamp) {
 }
 
 // ===== UI 업데이트 함수들 =====
-export function showLoading(message) {
+export function showLoading(message, detailMessage = '') {
     document.getElementById('loading').classList.add('active');
     document.getElementById('status').textContent = message;
+    const detailEl = document.getElementById('statusDetail');
+    if (detailMessage) {
+        detailEl.textContent = detailMessage;
+        detailEl.style.display = 'block';
+    } else {
+        detailEl.style.display = 'none';
+    }
     document.getElementById('searchBtn').style.display = 'none';
     document.getElementById('stopBtn').style.display = 'block';
 }
@@ -403,4 +410,85 @@ export async function displayResults(matches, api, allRankingsData, rankingCache
             resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 100);
     }
+}
+
+// ===== API 사용량 표시 (FFLogsAPI 클래스에서 사용) =====
+/**
+ * API 사용량을 UI에 표시합니다
+ * @param {Object} apiInstance - FFLogsAPI 인스턴스
+ * @param {string|null} countdownMessage - 대기 중 표시할 메시지
+ */
+export function updateApiUsageDisplay(apiInstance, countdownMessage = null) {
+    const usageEl = document.getElementById('apiUsage');
+    const longEl = document.getElementById('apiUsageLong');
+    const shortEl = document.getElementById('apiUsageShort');
+
+    if (!usageEl || !longEl || !shortEl) return;
+
+    // 왼쪽: 장기 포인트 (항상 업데이트)
+    updateLongTermUsage(apiInstance, longEl);
+
+    // 오른쪽: 단기 포인트 OR 카운트다운 메시지
+    const hasShortData = updateShortTermUsage(apiInstance, shortEl, countdownMessage);
+
+    // 표시 여부 결정
+    const hasLongData = apiInstance.rateLimitPerHour !== null;
+    if (hasLongData || hasShortData) {
+        usageEl.classList.add('active');
+    } else {
+        usageEl.classList.remove('active');
+    }
+}
+
+/**
+ * 장기 포인트 사용량 업데이트
+ */
+function updateLongTermUsage(apiInstance, longEl) {
+    if (apiInstance.rateLimitPerHour !== null && apiInstance.pointsSpent !== null) {
+        const percentage = ((apiInstance.pointsSpent / apiInstance.rateLimitPerHour) * 100).toFixed(1);
+        const resetMinutes = apiInstance.pointsResetIn ? Math.ceil(apiInstance.pointsResetIn / 60) : 0;
+        const colorClass = getUsageColorClass(parseFloat(percentage));
+
+        longEl.innerHTML = `1시간 장기 API 포인트 (${resetMinutes}분 후 리셋)\n<span class="usage-value ${colorClass}">${apiInstance.pointsSpent} / ${apiInstance.rateLimitPerHour} (${percentage}% 사용)</span>`;
+        longEl.className = '';
+    } else {
+        longEl.innerHTML = '';
+        longEl.className = '';
+    }
+}
+
+/**
+ * 단기 포인트 사용량 업데이트
+ */
+function updateShortTermUsage(apiInstance, shortEl, countdownMessage) {
+    if (countdownMessage) {
+        // 카운트다운 메시지 표시
+        shortEl.textContent = countdownMessage;
+        shortEl.className = 'waiting';
+        return true;
+    }
+
+    if (!apiInstance.isWaiting) {
+        // 일반 단기 포인트 표시
+        const recentCount = apiInstance.getRecentRequestCount();
+        const percentage = ((recentCount / RATE_LIMIT_CONSTANTS.MAX_REQUESTS) * 100).toFixed(1);
+        const windowSeconds = Math.floor(RATE_LIMIT_CONSTANTS.WINDOW_MS / 1000);
+        const colorClass = getUsageColorClass(parseFloat(percentage));
+
+        shortEl.innerHTML = `${windowSeconds}초 단기 API 포인트\n<span class="usage-value ${colorClass}">${recentCount} / ${RATE_LIMIT_CONSTANTS.MAX_REQUESTS} (${percentage}% 사용)</span>`;
+        shortEl.className = '';
+        return true;
+    }
+
+    // 대기 중이지만 메시지 없음 (기존 내용 유지)
+    return true;
+}
+
+/**
+ * 사용률에 따른 색상 클래스 반환
+ */
+function getUsageColorClass(percentage) {
+    if (percentage >= 80) return 'high';
+    if (percentage >= 50) return 'medium';
+    return 'low';
 }

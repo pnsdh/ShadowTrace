@@ -1,17 +1,27 @@
-import { SEARCH_CONSTANTS } from './constants.js';
+import { SEARCH_CONSTANTS, RATE_LIMIT_CONSTANTS } from './constants.js';
+import { RateLimiter } from './rate-limiter.js';
+import { updateApiUsageDisplay } from './ui.js';
 
 // ===== FFLogs API =====
 export class FFLogsAPI {
-    constructor(clientId, clientSecret) {
+    constructor(clientId, clientSecret, startPeriodicUpdate = true) {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.accessToken = null;
-        this.apiCallCount = 0;
 
         // Rate limit 정보 (GraphQL rateLimitData에서만 받음)
         this.rateLimitPerHour = null;
         this.pointsSpent = null;
         this.pointsResetIn = null;
+
+        // 실시간 업데이트 관련
+        this.updateInterval = null;
+        this.isWaiting = false;
+
+        // 주기적 업데이트 시작 (옵션)
+        if (startPeriodicUpdate) {
+            this.startPeriodicUpdate();
+        }
     }
 
     async getAccessToken() {
@@ -35,7 +45,51 @@ export class FFLogsAPI {
         return this.accessToken;
     }
 
-    async query(graphqlQuery, variables = {}) {
+    async query(graphqlQuery, variables = {}, requestCount = 1, signal = null) {
+        // 포인트 체크: 예상 포인트 소모량 계산
+        const estimatedPoints = requestCount * RATE_LIMIT_CONSTANTS.POINTS_PER_REQUEST;
+        const availablePoints = this.getAvailablePointSlots();
+
+        if (availablePoints !== null && availablePoints < estimatedPoints) {
+            const resetMinutes = Math.ceil(this.pointsResetIn / 60);
+            throw new Error(
+                `포인트 부족: 약 ${estimatedPoints.toFixed(1)} 포인트 필요하지만, ` +
+                `${availablePoints.toFixed(1)} 포인트만 남아있습니다. (${resetMinutes}분 후 리셋)`
+            );
+        }
+
+        // Rate limit 체크: HTTP 요청은 항상 1개 슬롯만 필요 (배치 크기와 무관)
+        const availableSlots = RateLimiter.getAvailableRequestSlots();
+        if (availableSlots < 1) {
+            const waitTime = RateLimiter.getWaitTimeForSlots(1);
+            console.log(`[query 대기] HTTP 요청 1개 슬롯 필요, ${availableSlots}개 사용 가능, ${Math.ceil(waitTime/1000)}초 대기...`);
+
+            // 대기 플래그 설정 및 주기적 업데이트 중지
+            this.isWaiting = true;
+            this.stopPeriodicUpdate();
+
+            // 카운트다운하면서 대기 (중단 신호 체크)
+            let remainingSeconds = Math.ceil(waitTime / 1000);
+            while (remainingSeconds > 0) {
+                // 중단 신호 체크
+                if (signal && signal.aborted) {
+                    this.isWaiting = false;
+                    this.startPeriodicUpdate();
+                    updateApiUsageDisplay(this);
+                    throw new Error('검색이 중단되었습니다.');
+                }
+
+                updateApiUsageDisplay(this, `⏳ API 제한 대기 중... ${remainingSeconds}초`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                remainingSeconds--;
+            }
+
+            // 대기 완료 후 정상 표시로 복귀 및 주기적 업데이트 재시작
+            this.isWaiting = false;
+            this.startPeriodicUpdate();
+            updateApiUsageDisplay(this);
+        }
+
         const token = await this.getAccessToken();
 
         const response = await fetch('https://www.fflogs.com/api/v2/client', {
@@ -54,8 +108,12 @@ export class FFLogsAPI {
             throw new Error('API 요청 실패');
         }
 
-        // API 호출 횟수만 카운트 (사용량은 GraphQL rateLimitData에서 받음)
-        this.apiCallCount++;
+        // Rate limit 추적: HTTP 요청은 항상 1회로 카운트 (배치 크기와 무관)
+        // 장기 포인트(FFLogs rateLimitData)는 requestCount만큼 증가하지만,
+        // 단기 포인트(HTTP 요청 횟수)는 항상 1씩 증가
+        console.log(`[query 전] requestCount=${requestCount}, 현재 HTTP 요청 total=${RateLimiter.getRecentRequestCount()}`);
+        RateLimiter.addRequestRecord(1);
+        console.log(`[query 후] HTTP 요청 total=${RateLimiter.getRecentRequestCount()}, historyLen=${RateLimiter.requestHistory.length}`);
 
         const data = await response.json();
         if (data.errors) {
@@ -65,38 +123,59 @@ export class FFLogsAPI {
         return data.data;
     }
 
-    updateApiUsageDisplay() {
-        const usageEl = document.getElementById('apiUsage');
-        if (usageEl) {
-            let html = `📊 API 호출: ${this.apiCallCount}회`;
-
-            if (this.rateLimitPerHour !== null && this.pointsSpent !== null) {
-                const percentage = ((this.pointsSpent / this.rateLimitPerHour) * 100).toFixed(1);
-                html += ` | 포인트: ${this.pointsSpent} / ${this.rateLimitPerHour} (${percentage}% 사용)`;
-
-                if (this.pointsResetIn) {
-                    const resetMinutes = Math.ceil(this.pointsResetIn / 60);
-                    html += ` | ${resetMinutes}분 후 리셋`;
-                }
-            }
-
-            usageEl.textContent = html;
-            usageEl.style.display = 'block';
+    // 실시간 갱신: 대기 중이 아닐 때만 업데이트
+    _periodicUpdate() {
+        if (!this.isWaiting) {
+            updateApiUsageDisplay(this);
         }
+    }
+
+    // 주기적 업데이트 시작
+    startPeriodicUpdate() {
+        if (this.updateInterval) return; // 중복 방지
+
+        this.updateInterval = setInterval(() => {
+            this._periodicUpdate();
+        }, 1000);
+    }
+
+    // 주기적 업데이트 중지
+    stopPeriodicUpdate() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+    }
+
+    getRecentRequestCount() {
+        return RateLimiter.getRecentRequestCount();
+    }
+
+    getAvailableRequestSlots() {
+        return RateLimiter.getAvailableRequestSlots();
+    }
+
+    getAvailablePointSlots() {
+        if (!this.rateLimitPerHour || !this.pointsSpent) return null;
+        return Math.max(0, this.rateLimitPerHour - this.pointsSpent);
+    }
+
+    getWaitTimeForSlots(neededSlots = 1) {
+        return RateLimiter.getWaitTimeForSlots(neededSlots);
     }
 
     resetUsageTracking() {
-        this.apiCallCount = 0;
         this.rateLimitPerHour = null;
         this.pointsSpent = null;
         this.pointsResetIn = null;
+        // requestHistory는 RateLimiter에서 시간 윈도우 기반으로 자동 관리되므로 리셋하지 않음
         const usageEl = document.getElementById('apiUsage');
         if (usageEl) {
-            usageEl.style.display = 'none';
+            usageEl.classList.remove('active');
         }
     }
 
-    async getAnonymousReport(code) {
+    async getAnonymousReport(code, signal = null) {
         const query = `
             query($code: String!) {
                 reportData {
@@ -145,7 +224,7 @@ export class FFLogsAPI {
             }
         `;
 
-        const data = await this.query(query, { code });
+        const data = await this.query(query, { code }, 1, signal);
 
         // Rate limit 정보 업데이트
         if (data.rateLimitData) {
@@ -155,7 +234,7 @@ export class FFLogsAPI {
         return data.reportData.report;
     }
 
-    async getReportPlayers(reportCode, fightID) {
+    async getReportPlayers(reportCode, fightID, signal = null) {
         const basicQuery = `
             query($code: String!) {
                 reportData {
@@ -178,7 +257,7 @@ export class FFLogsAPI {
             }
         `;
 
-        const basicData = await this.query(basicQuery, { code: reportCode });
+        const basicData = await this.query(basicQuery, { code: reportCode }, 1, signal);
 
         // 해당 fight 참여 플레이어 ID 목록
         const fight = basicData.reportData.report.fights?.[0];
@@ -191,7 +270,7 @@ export class FFLogsAPI {
         return { masterData: { actors: players } };
     }
 
-    async getReportRDPS(reportCode, fightID) {
+    async getReportRDPS(reportCode, fightID, signal = null) {
         const query = `
             query($code: String!) {
                 reportData {
@@ -202,7 +281,7 @@ export class FFLogsAPI {
             }
         `;
 
-        const data = await this.query(query, { code: reportCode });
+        const data = await this.query(query, { code: reportCode }, 1, signal);
         const tableData = data.reportData.report.table;
 
         // table 데이터에서 RDPS 추출
@@ -220,34 +299,32 @@ export class FFLogsAPI {
         this.rateLimitPerHour = rateLimitData.limitPerHour;
         this.pointsSpent = rateLimitData.pointsSpentThisHour;
         this.pointsResetIn = rateLimitData.pointsResetIn;
-        this.updateApiUsageDisplay();
-    }
 
-    async getEncounterRankings(encounterId, difficulty, size, region, page = 1, partition, rankingCache, updateCacheDisplay, partitionName = null) {
-        // 캐시 확인 (partition 포함)
-        const cached = await rankingCache.get(encounterId, difficulty, size, region, page, partition);
-        if (cached) {
-            return cached.data;
+        // 대기 중이 아닐 때만 업데이트 (대기 중에는 카운트다운 유지)
+        if (!this.isWaiting) {
+            updateApiUsageDisplay(this);
+        }
+    }
+}
+
+/**
+ * API 사용량을 조회하여 표시합니다
+ * @param {string} clientId - FFLogs API Client ID
+ * @param {string} clientSecret - FFLogs API Client Secret
+ * @param {FFLogsAPI} existingApiInstance - 기존 API 인스턴스 (재사용)
+ */
+export async function loadApiUsage(clientId, clientSecret, existingApiInstance = null) {
+    try {
+        const api = existingApiInstance;
+
+        if (!api) {
+            console.warn('loadApiUsage: API 인스턴스가 제공되지 않았습니다.');
+            return;
         }
 
-        const regionFilter = region ? `, serverRegion: "${region}"` : '';
-        const partitionFilter = partition ? `, partition: ${partition}` : '';
-
+        // 간단한 쿼리로 rateLimitData만 가져오기
         const query = `
             query {
-                worldData {
-                    encounter(id: ${encounterId}) {
-                        name
-                        characterRankings(
-                            difficulty: ${difficulty}
-                            metric: rdps
-                            size: ${size}
-                            page: ${page}
-                            ${regionFilter}
-                            ${partitionFilter}
-                        )
-                    }
-                }
                 rateLimitData {
                     limitPerHour
                     pointsSpentThisHour
@@ -256,61 +333,13 @@ export class FFLogsAPI {
             }
         `;
 
-        const data = await this.query(query);
+        const data = await api.query(query);
 
-        // Rate limit 정보 업데이트
         if (data.rateLimitData) {
-            this.updateRateLimitInfo(data.rateLimitData);
+            api.updateRateLimitInfo(data.rateLimitData);
         }
-
-        const encounterData = data.worldData.encounter;
-        const rankings = encounterData.characterRankings;
-
-        // encounterName과 partitionName을 포함하도록 수정
-        const rankingsWithName = {
-            ...rankings,
-            encounterName: encounterData.name,
-            partitionName: partitionName  // 파티션 이름 추가
-        };
-
-        // 캐시에 저장 (최소화된 데이터만, partition 포함)
-        await rankingCache.set(encounterId, difficulty, size, region, page, partition, rankingsWithName, encounterData.name);
-        if (updateCacheDisplay) {
-            await updateCacheDisplay();
-        }
-
-        return rankings;
-    }
-
-    // 이진 탐색으로 최대 페이지 수 찾기
-    async findMaxPages(encounterId, difficulty, size, region, partition, rankingCache, partitionName = null) {
-        let low = 1;
-        let high = SEARCH_CONSTANTS.MAX_PAGES;
-        let maxValidPage = 1;
-
-        while (low <= high) {
-            const mid = Math.floor((low + high) / 2);
-
-            try {
-                const rankings = await this.getEncounterRankings(
-                    encounterId, difficulty, size, region, mid, partition,
-                    rankingCache, () => {}, partitionName // 빈 콜백, partitionName 전달
-                );
-
-                if (rankings && rankings.rankings && rankings.rankings.length > 0) {
-                    // 유효한 페이지 발견
-                    maxValidPage = mid;
-                    low = mid + 1;
-                } else {
-                    // 빈 페이지 발견
-                    high = mid - 1;
-                }
-            } catch (e) {
-                // 오류 발생 시 더 작은 범위로
-                high = mid - 1;
-            }
-        }
-
-        return maxValidPage;
+    } catch (e) {
+        // API 키가 잘못되었거나 네트워크 오류 시 조용히 무시
+        console.warn('API 사용량 조회 실패:', e);
     }
 }

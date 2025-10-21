@@ -8,7 +8,8 @@ import { RankingCache } from './cache.js';
 import { FFLogsAPI } from './api.js';
 import { showLoading, hideLoading, showError, hideError, updateCacheDisplay, displayResults } from './ui.js';
 import { openSettingsModal, closeSettingsModal, openCacheModal, closeCacheModal, setupModalClickOutside, isAnyModalOpen } from './modal.js';
-import { saveSettings, saveApiKeys, loadSavedApiKeys, loadApiUsage } from './settings.js';
+import { saveSettings, saveApiKeys, loadSavedApiKeys } from './settings.js';
+import { loadApiUsage } from './api.js';
 import { clearEncounterCache, clearAllCache, refreshCacheAndSearch, exportCache, importCache } from './cache-manager.js';
 import { detectRegion, detectPartition, filterAndPrepareFights, searchFights, handleSearchAbort } from './search.js';
 
@@ -16,6 +17,7 @@ import { detectRegion, detectPartition, filterAndPrepareFights, searchFights, ha
 const rankingCache = new RankingCache();
 let currentSearchAbortController = null;
 let lastSearchParams = null;
+let globalApiInstance = null; // 전역 API 인스턴스 (싱글톤)
 
 // ===== 메인 검색 함수 =====
 /**
@@ -71,15 +73,25 @@ async function startSearch() {
     const signal = currentSearchAbortController.signal;
 
     try {
-        showLoading('캐시 초기화 중...');
+        const mainStatus = '초기화';
+        const detailStatus = '캐시 초기화 중...';
+        showLoading(mainStatus, detailStatus);
         await rankingCache.init();
 
-        showLoading('익명 로그 정보를 가져오는 중...');
-        const api = new FFLogsAPI(clientId, clientSecret);
+        showLoading('익명 로그', '정보를 가져오는 중...');
+
+        // 전역 API 인스턴스 가져오기 또는 생성
+        if (!globalApiInstance || globalApiInstance.clientId !== clientId) {
+            if (globalApiInstance) {
+                globalApiInstance.stopPeriodicUpdate();
+            }
+            globalApiInstance = new FFLogsAPI(clientId, clientSecret);
+        }
+        const api = globalApiInstance;
         api.resetUsageTracking();
 
         // 익명 로그 정보 가져오기
-        const report = await api.getAnonymousReport(reportCode);
+        const report = await api.getAnonymousReport(reportCode, signal);
         if (signal.aborted) return;
 
         // Fight 필터링
@@ -96,8 +108,8 @@ async function startSearch() {
         if (partitionName) {
             partitionText = `P${partition} - ${partitionName}`;
         }
-        const regionText = region ? ` (${region}, ${partitionText})` : ` (전체, ${partitionText})`;
-        showLoading(`${fights.length}개의 전투를 분석 중...${regionText}`);
+        const regionText = `(${region || '전체'}, ${partitionText})`;
+        showLoading(`${fights.length}개의 전투 ${regionText}`, '분석 중...');
 
         // 검색 파라미터 저장 (재검색용)
         lastSearchParams = {
@@ -227,9 +239,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // IndexedDB 캐시 초기화
     await rankingCache.init();
 
-    // API 설정이 되어있으면 사용량 표시
+    // API 설정이 되어있으면 전역 인스턴스 생성 및 사용량 표시
     if (savedClientId && savedClientSecret) {
-        await loadApiUsage(savedClientId, savedClientSecret);
+        globalApiInstance = new FFLogsAPI(savedClientId, savedClientSecret);
+        await loadApiUsage(savedClientId, savedClientSecret, globalApiInstance);
     }
 
     // 모달 외부 클릭 이벤트 설정

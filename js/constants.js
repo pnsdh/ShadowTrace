@@ -9,7 +9,16 @@ export const STORAGE_KEYS = {
 export const SEARCH_CONSTANTS = {
     MAX_PAGES: 1600,
     KR_PARTITION: 5,
-    DEFAULT_PARTITION: 1
+    DEFAULT_PARTITION: 1,
+    MAX_BATCH_SIZE: 30,       // 한번에 요청할 최대 페이지 수
+    MAX_RETRIES: 2            // 배치 요청 실패 시 최대 재시도 횟수
+};
+
+export const RATE_LIMIT_CONSTANTS = {
+    WINDOW_MS: 120000,        // Rate limit 추적 윈도우 (밀리초)
+    MAX_REQUESTS: 240,        // 윈도우 시간당 최대 요청 수
+    SAFETY_MARGIN_MS: 1000,   // 대기 시간 안전 여유 (밀리초)
+    POINTS_PER_REQUEST: 1.1   // 요청당 예상 포인트 소모량
 };
 
 export const MATCHING_THRESHOLDS = {

@@ -38,17 +38,17 @@ export class LogMatcher {
     }
 
     // RDPS 검증: 익명 로그와 공개 로그의 전체 파티원 RDPS 비교
-    async verifyRDPS(reportCode, fightID, api) {
+    async verifyRDPS(reportCode, fightID, api, signal = null) {
         try {
             // 익명 로그의 RDPS 데이터 가져오기
-            const anonymousRDPS = await api.getReportRDPS(this.anonymousReportCode, this.anonymousFightID);
+            const anonymousRDPS = await api.getReportRDPS(this.anonymousReportCode, this.anonymousFightID, signal);
 
             if (!anonymousRDPS || anonymousRDPS.length === 0) {
                 return false;
             }
 
             // 공개 로그의 RDPS 데이터 가져오기
-            const publicRDPS = await api.getReportRDPS(reportCode, fightID);
+            const publicRDPS = await api.getReportRDPS(reportCode, fightID, signal);
 
             if (!publicRDPS || publicRDPS.length === 0) {
                 return false;

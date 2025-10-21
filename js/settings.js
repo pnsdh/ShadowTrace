@@ -48,34 +48,3 @@ export function loadSavedApiKeys() {
 
     return { savedClientId, savedClientSecret };
 }
-
-/**
- * API 사용량을 조회하여 표시합니다
- * @param {string} clientId - FFLogs API Client ID
- * @param {string} clientSecret - FFLogs API Client Secret
- */
-export async function loadApiUsage(clientId, clientSecret) {
-    try {
-        const api = new FFLogsAPI(clientId, clientSecret);
-
-        // 간단한 쿼리로 rateLimitData만 가져오기
-        const query = `
-            query {
-                rateLimitData {
-                    limitPerHour
-                    pointsSpentThisHour
-                    pointsResetIn
-                }
-            }
-        `;
-
-        const data = await api.query(query);
-
-        if (data.rateLimitData) {
-            api.updateRateLimitInfo(data.rateLimitData);
-        }
-    } catch (e) {
-        // API 키가 잘못되었거나 네트워크 오류 시 조용히 무시
-        console.warn('API 사용량 조회 실패:', e);
-    }
-}

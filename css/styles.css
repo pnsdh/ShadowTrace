@@ -223,6 +223,14 @@ button:disabled {
     color: var(--text-secondary);
     font-size: 14px;
     margin-top: 10px;
+    font-weight: 600;
+}
+
+.status-detail {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 5px;
+    opacity: 0.8;
 }
 
 .results {
@@ -497,13 +505,47 @@ button:disabled {
 #apiUsage {
     display: none;
     margin-top: 15px;
+    gap: 12px;
+}
+
+#apiUsage.active {
+    display: flex;
+}
+
+#apiUsageLong, #apiUsageShort {
+    flex: 1;
     padding: 12px;
     background: #e3f2fd;
     border-radius: 6px;
     color: #1565c0;
     font-size: 13px;
-    text-align: center;
     font-weight: 600;
+    text-align: center;
+    line-height: 1.6;
+    white-space: pre-line;
+}
+
+/* 단기 포인트 - 대기 중 */
+#apiUsageShort.waiting {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+/* 사용량 숫자 컬러링 */
+.usage-value {
+    transition: color 0.3s;
+}
+
+.usage-value.low {
+    color: #2e7d32;
+}
+
+.usage-value.medium {
+    color: #f57c00;
+}
+
+.usage-value.high {
+    color: #d32f2f;
 }
 
 /* 캐시 표시 관련 */

@@ -1,6 +1,7 @@
 import { SEARCH_CONSTANTS, ANONYMOUS_NAMES } from './constants.js';
 import { LogMatcher } from './matcher.js';
 import { showLoading, updateCacheDisplay } from './ui.js';
+import { getEncounterRankings, getEncounterRankingsBatch, findMaxPages } from './rankings.js';
 
 /**
  * 검색 로직 모듈
@@ -181,19 +182,25 @@ export async function searchFights(fights, report, reportCode, api, region, part
 
             estimatedMaxPages = cachedMaxPage || '?';
         } else {
-            showLoading(`${fight.name} 전체 페이지 수 확인 중...${fightProgressText}${regionText}`);
-            estimatedMaxPages = await api.findMaxPages(
+            const mainStatus = `${fight.name}${fightProgressText} (${region || '전체'}, ${partitionText})`;
+            const detailStatus = `전체 페이지 수 확인 중...`;
+            showLoading(mainStatus, detailStatus);
+            estimatedMaxPages = await findMaxPages(
+                api,
                 fight.encounterID,
                 fight.difficulty,
                 fight.size,
                 region,
                 partition,
                 rankingCache,
-                partitionName
+                partitionName,
+                signal
             );
         }
 
         if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
+
+        // 포인트 체크는 query() 메서드에서 자동으로 수행됨
 
         const matcher = new LogMatcher(fight, report.startTime, reportCode);
 
@@ -203,8 +210,13 @@ export async function searchFights(fights, report, reportCode, api, region, part
         const fightRankingsData = [];
 
         if (hasCache) {
-            showLoading(`${fight.name} 매칭 중${fightProgressText}${regionText}`);
+            const mainStatus = `${fight.name}${fightProgressText} (${region || '전체'}, ${partitionText})`;
+            const detailStatus = `매칭 중...`;
+            showLoading(mainStatus, detailStatus);
         }
+
+        const MAX_BATCH_SIZE = SEARCH_CONSTANTS.MAX_BATCH_SIZE;
+        const maxPage = hasCache && cachedMaxPage ? cachedMaxPage : estimatedMaxPages;
 
         while (hasMorePages && page <= SEARCH_CONSTANTS.MAX_PAGES) {
             if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
@@ -214,68 +226,126 @@ export async function searchFights(fights, report, reportCode, api, region, part
                 break;
             }
 
-            if (!hasCache) {
-                const pageText = region ? ` (${region}, ${page}/${estimatedMaxPages}, ${partitionText})` : ` (전체, ${page}/${estimatedMaxPages}, ${partitionText})`;
-                const statusText = `${fight.name} 매칭 중${fightProgressText}${pageText}`;
-                showLoading(statusText);
-            }
+            // 남은 페이지 계산
+            const remainingPages = maxPage ? maxPage - page + 1 : 999;
 
-            const rankings = await api.getEncounterRankings(
-                fight.encounterID,
-                fight.difficulty,
-                fight.size,
-                region,
-                page,
-                partition,
-                rankingCache,
-                hasCache ? null : async () => await updateCacheDisplay(rankingCache),
-                partitionName
+            // 동적 배치 사이즈 계산
+            // query() 메서드에서 자동으로 대기하므로 여기서는 크기만 결정
+            const availablePoints = api.getAvailablePointSlots();
+            const dynamicBatchSize = Math.min(
+                MAX_BATCH_SIZE,
+                availablePoints || 999,
+                remainingPages,
+                estimatedMaxPages ? estimatedMaxPages - page + 1 : 999  // 최대 페이지를 넘지 않도록 제한
             );
 
-            if (!rankings || !rankings.rankings || !Array.isArray(rankings.rankings)) {
-                console.warn('유효하지 않은 랭킹 데이터:', rankings);
+            if (dynamicBatchSize <= 0) {
+                console.warn('동적 배치 크기가 0 이하입니다. 루프 중단.');
                 break;
             }
 
-            fightRankingsData.push(rankings);
+            // 로딩 메시지
+            if (!hasCache) {
+                const regionInfo = region ? `${region}` : '전체';
+                const progressInfo = `${page}-${Math.min(page + dynamicBatchSize - 1, estimatedMaxPages)}/${estimatedMaxPages}`;
+                const mainStatus = `${fight.name}${fightProgressText} (${regionInfo}, ${partitionText})`;
+                const detailStatus = `랭킹 페이지 검색 중: ${progressInfo} [배치: ${dynamicBatchSize}개]`;
+                showLoading(mainStatus, detailStatus);
+            }
 
-            for (const ranking of rankings.rankings) {
-                if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
+            // 배치 요청 (재시도 포함)
+            let batchResults;
+            const MAX_RETRIES = SEARCH_CONSTANTS.MAX_RETRIES;
 
-                if (!ranking || !ranking.report) {
-                    console.warn('유효하지 않은 랭킹 항목:', ranking);
-                    continue;
-                }
+            for (let retry = 0; retry <= MAX_RETRIES; retry++) {
+                try {
+                    batchResults = await getEncounterRankingsBatch(
+                        api,
+                        fight.encounterID,
+                        fight.difficulty,
+                        fight.size,
+                        region,
+                        page,
+                        dynamicBatchSize,
+                        partition,
+                        rankingCache,
+                        hasCache ? null : async () => await updateCacheDisplay(rankingCache),
+                        partitionName,
+                        signal
+                    );
+                    break; // 성공
 
-                if (ANONYMOUS_NAMES.includes(ranking.name)) {
-                    continue;
-                }
-
-                const result = matcher.match(ranking);
-                if (result.matched) {
-                    fightMatches.push({
-                        ...result,
-                        fightName: fight.name,
-                        fightId: fight.id
-                    });
+                } catch (error) {
+                    if (retry < MAX_RETRIES) {
+                        // 재시도: 잠시 대기 후 재시도
+                        console.warn(`[배치 실패 ${retry + 1}/${MAX_RETRIES + 1}] ${error.message}, 재시도...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
+                        if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
+                    } else {
+                        // 최종 실패: 전체 취소
+                        console.error(`[배치 최종 실패] ${error.message}`);
+                        throw new Error(`데이터 요청 실패: ${error.message}. 검색을 중단합니다.`);
+                    }
                 }
             }
 
-            hasMorePages = rankings.hasMorePages;
-            page++;
+            // 각 페이지 결과 처리
+            for (const rankings of batchResults) {
+                if (!rankings || !rankings.rankings || !Array.isArray(rankings.rankings)) {
+                    console.warn('유효하지 않은 랭킹 데이터:', rankings);
+                    hasMorePages = false;
+                    break;
+                }
+
+                fightRankingsData.push(rankings);
+
+                for (const ranking of rankings.rankings) {
+                    if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
+
+                    if (!ranking || !ranking.report) {
+                        console.warn('유효하지 않은 랭킹 항목:', ranking);
+                        continue;
+                    }
+
+                    if (ANONYMOUS_NAMES.includes(ranking.name)) {
+                        continue;
+                    }
+
+                    const result = matcher.match(ranking);
+                    if (result.matched) {
+                        fightMatches.push({
+                            ...result,
+                            fightName: fight.name,
+                            fightId: fight.id
+                        });
+                    }
+                }
+
+                // 마지막 배치의 마지막 페이지에서 hasMorePages 확인
+                if (rankings === batchResults[batchResults.length - 1]) {
+                    hasMorePages = rankings.hasMorePages;
+                }
+            }
+
+            page += dynamicBatchSize;
         }
 
         // 현재 fight의 모든 페이지 검색 완료 후 매칭 성공 체크
         if (fightMatches.length > 0) {
             // RDPS 검증 수행
-            showLoading(`${fight.name} 매칭 결과 검증 중...${fightProgressText}${regionText}`);
+            const mainStatus = `${fight.name}${fightProgressText} (${region || '전체'}, ${partitionText})`;
+            const detailStatus = `매칭 결과 검증 중...`;
+            showLoading(mainStatus, detailStatus);
 
             const verifiedMatches = [];
             for (const match of fightMatches) {
+                if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
+
                 const isVerified = await matcher.verifyRDPS(
                     match.ranking.report.code,
                     match.ranking.report.fightID,
-                    api
+                    api,
+                    signal
                 );
 
                 if (isVerified) {

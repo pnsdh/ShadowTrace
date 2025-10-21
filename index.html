@@ -37,11 +37,15 @@
         <button id="searchBtn" onclick="startSearch()">원본 로그 찾기</button>
         <button id="stopBtn" onclick="stopSearch()">⏸ 검색 중단</button>
 
-        <div id="apiUsage"></div>
+        <div id="apiUsage">
+            <div id="apiUsageLong"></div>
+            <div id="apiUsageShort"></div>
+        </div>
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <div class="status" id="status">로그 정보를 가져오는 중...</div>
+            <div class="status-detail" id="statusDetail"></div>
         </div>
 
         <div class="error" id="error"></div>
