@@ -1,9 +1,7 @@
-import { STORAGE_KEYS } from './constants.js';
 
 // ===== 캐시 관리 (IndexedDB) =====
 export class RankingCache {
     constructor() {
-        this.oldCacheKey = STORAGE_KEYS.RANKING_CACHE; // 마이그레이션용
         this.initialized = false;
         this.searchStartTime = null; // 현재 검색 시작 시간
         this.keysAddedInCurrentSearch = new Set(); // 현재 검색에서 추가된 키
@@ -19,9 +17,6 @@ export class RankingCache {
         if (this.initialized) return;
 
         try {
-            // 기존 단일 객체 방식 캐시 마이그레이션
-            await this.migrateFromOldFormat();
-
             // 불완전한 검색 캐시 정리 (이전 세션에서 중단된 경우)
             await this.cleanupIncompleteSearches();
 
@@ -29,39 +24,6 @@ export class RankingCache {
         } catch (e) {
             console.error('캐시 초기화 실패:', e);
             this.initialized = true;
-        }
-    }
-
-    async migrateFromOldFormat() {
-        try {
-            // localStorage에서 마이그레이션
-            const oldLocalStorage = localStorage.getItem(this.oldCacheKey);
-            if (oldLocalStorage) {
-                const oldCache = JSON.parse(oldLocalStorage);
-                console.log('기존 localStorage 캐시를 IndexedDB로 마이그레이션 중...');
-
-                for (const [key, value] of Object.entries(oldCache)) {
-                    await this.storage.setItem(key, value);
-                }
-
-                localStorage.removeItem(this.oldCacheKey);
-                console.log('localStorage 마이그레이션 완료!');
-            }
-
-            // 기존 단일 객체 IndexedDB 캐시 마이그레이션
-            const oldCache = await this.storage.getItem(this.oldCacheKey);
-            if (oldCache && typeof oldCache === 'object') {
-                console.log('기존 단일 객체 캐시를 개별 키로 마이그레이션 중...');
-
-                for (const [key, value] of Object.entries(oldCache)) {
-                    await this.storage.setItem(key, value);
-                }
-
-                await this.storage.removeItem(this.oldCacheKey);
-                console.log('개별 키 마이그레이션 완료!');
-            }
-        } catch (e) {
-            console.error('마이그레이션 실패:', e);
         }
     }
 

@@ -3,7 +3,6 @@ export const STORAGE_KEYS = {
     CLIENT_ID: 'fflogs_client_id',
     CLIENT_SECRET: 'fflogs_client_secret',
     REGION: 'fflogs_region',
-    RANKING_CACHE: 'fflogs_ranking_cache',
     SEARCH_ALL_FIGHTS: 'fflogs_search_all_fights'
 };
 
