@@ -6,17 +6,60 @@ import { updateCacheDisplay } from './ui.js';
  */
 
 /**
+ * 현재 열려있는 모달이 있는지 확인합니다
+ * @returns {boolean} 모달이 하나라도 열려있으면 true
+ */
+export function isAnyModalOpen() {
+    const modals = document.querySelectorAll('.modal');
+    return Array.from(modals).some(modal => modal.classList.contains('active'));
+}
+
+/**
  * API 설정 모달을 엽니다
  */
 export function openSettingsModal() {
-    document.getElementById('settingsModal').classList.add('active');
+    const modal = document.getElementById('settingsModal');
+    modal.classList.add('active');
+
+    // 기존 이벤트 리스너 제거 (중복 방지)
+    if (modal._cleanupSettingsEnter) {
+        modal._cleanupSettingsEnter();
+    }
+
+    // 엔터 키로 저장
+    const handleEnter = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation(); // 같은 요소의 다른 리스너도 막기
+            window.saveSettings();
+        }
+    };
+
+    // 모달이 닫힐 때 이벤트 제거
+    const cleanup = () => {
+        document.removeEventListener('keypress', handleEnter, true);
+        modal.removeEventListener('modal-closed', cleanup);
+    };
+
+    // 캡처 단계에서 이벤트 먼저 잡기
+    document.addEventListener('keypress', handleEnter, true);
+    modal.addEventListener('modal-closed', cleanup);
+    modal._cleanupSettingsEnter = cleanup; // cleanup 참조 저장
 }
 
 /**
  * API 설정 모달을 닫습니다
  */
 export function closeSettingsModal() {
-    document.getElementById('settingsModal').classList.remove('active');
+    const modal = document.getElementById('settingsModal');
+    modal.classList.remove('active');
+
+    // 엔터 키 이벤트 정리
+    if (modal._cleanupSettingsEnter) {
+        modal._cleanupSettingsEnter();
+        modal._cleanupSettingsEnter = null;
+    }
 }
 
 /**
@@ -50,6 +93,11 @@ export function showConfirm(title, message, onlyConfirm = false) {
         const yesBtn = document.getElementById('confirmYes');
         const noBtn = document.getElementById('confirmNo');
 
+        // 기존 이벤트 정리 (중복 방지)
+        if (modal._cleanupConfirm) {
+            modal._cleanupConfirm();
+        }
+
         titleEl.textContent = title;
         messageEl.innerHTML = message; // HTML 지원
 
@@ -74,6 +122,9 @@ export function showConfirm(title, message, onlyConfirm = false) {
 
         const handleEnter = (e) => {
             if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation(); // 같은 요소의 다른 리스너도 막기
                 handleYes();
             }
         };
@@ -82,12 +133,15 @@ export function showConfirm(title, message, onlyConfirm = false) {
             modal.classList.remove('active');
             yesBtn.removeEventListener('click', handleYes);
             noBtn.removeEventListener('click', handleNo);
-            document.removeEventListener('keypress', handleEnter);
+            document.removeEventListener('keypress', handleEnter, true);
+            modal._cleanupConfirm = null;
         };
 
         yesBtn.addEventListener('click', handleYes);
         noBtn.addEventListener('click', handleNo);
-        document.addEventListener('keypress', handleEnter);
+        // 캡처 단계에서 이벤트 먼저 잡기
+        document.addEventListener('keypress', handleEnter, true);
+        modal._cleanupConfirm = cleanup; // cleanup 참조 저장
     });
 }
 

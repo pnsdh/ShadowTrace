@@ -7,7 +7,7 @@ import { STORAGE_KEYS } from './constants.js';
 import { RankingCache } from './cache.js';
 import { FFLogsAPI } from './api.js';
 import { showLoading, hideLoading, showError, hideError, updateCacheDisplay, displayResults } from './ui.js';
-import { openSettingsModal, closeSettingsModal, openCacheModal, closeCacheModal, setupModalClickOutside } from './modal.js';
+import { openSettingsModal, closeSettingsModal, openCacheModal, closeCacheModal, setupModalClickOutside, isAnyModalOpen } from './modal.js';
 import { saveSettings, saveApiKeys, loadSavedApiKeys, loadApiUsage } from './settings.js';
 import { clearEncounterCache, clearAllCache, refreshCacheAndSearch, exportCache, importCache } from './cache-manager.js';
 import { detectRegion, detectPartition, filterAndPrepareFights, searchFights, handleSearchAbort } from './search.js';
@@ -239,9 +239,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('anonymousUrl').focus();
 });
 
-// Enter 키 지원
+// Enter 키 지원 (모달이 열려있지 않을 때만)
 document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
+        // 모달이 하나라도 열려있으면 무시
+        if (isAnyModalOpen()) {
+            return;
+        }
+
         const searchBtn = document.getElementById('searchBtn');
         if (searchBtn.style.display !== 'none') {
             startSearch();
