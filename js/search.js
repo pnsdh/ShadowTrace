@@ -1,4 +1,4 @@
-import { SEARCH_CONSTANTS } from './constants.js';
+import { SEARCH_CONSTANTS, ANONYMOUS_NAMES } from './constants.js';
 import { LogMatcher } from './matcher.js';
 import { showLoading, updateCacheDisplay } from './ui.js';
 
@@ -247,7 +247,7 @@ export async function searchFights(fights, report, reportCode, api, region, part
                     continue;
                 }
 
-                if (ranking.name === 'Anonymous' || ranking.name === 'anonymous') {
+                if (ANONYMOUS_NAMES.includes(ranking.name)) {
                     continue;
                 }
 

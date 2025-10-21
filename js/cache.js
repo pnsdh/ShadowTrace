@@ -1,3 +1,4 @@
+import { ANONYMOUS_NAMES } from './constants.js';
 
 // ===== 캐시 관리 (IndexedDB) =====
 export class RankingCache {
@@ -182,7 +183,8 @@ export class RankingCache {
         const searchStartTime = parseInt(searchInProgress);
         const now = Date.now();
 
-        // 1분 이상 지난 "검색 중" 상태는 비정상 종료로 간주
+        // CACHE_CONSTANTS를 import 해야 하므로 일단 하드코딩 유지
+        // (circular dependency 방지)
         if (now - searchStartTime < 60000) {
             return; // 최근 검색이므로 유지
         }
@@ -379,7 +381,7 @@ export class RankingCache {
                 const item = await this.storage.getItem(key);
                 if (item && item.rankings && Array.isArray(item.rankings)) {
                     item.rankings.forEach(ranking => {
-                        if (ranking && ranking.name && ranking.name !== 'Anonymous' && ranking.name !== 'anonymous') {
+                        if (ranking && ranking.name && !ANONYMOUS_NAMES.includes(ranking.name)) {
                             playerNames.add(ranking.name);
                         }
                     });

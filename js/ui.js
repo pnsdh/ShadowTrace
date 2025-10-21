@@ -1,4 +1,4 @@
-import { jobNameMap, serverNameMap } from './constants.js';
+import { jobNameMap, serverNameMap, ANONYMOUS_NAMES } from './constants.js';
 
 // ===== 헬퍼 함수 =====
 function translateJobName(englishName) {
@@ -209,7 +209,7 @@ export async function displayResults(matches, api, allRankingsData, rankingCache
         allRankingsData.forEach(rankingData => {
             if (rankingData && rankingData.rankings && Array.isArray(rankingData.rankings)) {
                 rankingData.rankings.forEach(ranking => {
-                    if (ranking && ranking.name && ranking.name !== 'Anonymous' && ranking.name !== 'anonymous') {
+                    if (ranking && ranking.name && !ANONYMOUS_NAMES.includes(ranking.name)) {
                         allRankingPlayers.add(ranking.name);
                     }
                 });

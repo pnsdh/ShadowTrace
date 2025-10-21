@@ -14,8 +14,15 @@ export const SEARCH_CONSTANTS = {
 
 export const MATCHING_THRESHOLDS = {
     TIME_DIFF_MS: 10000,      // 10초
-    DURATION_DIFF_MS: 5000    // 5초
+    DURATION_DIFF_MS: 5000,   // 5초
+    RDPS_DIFF_RATIO: 0.001    // 0.1% (RDPS 검증 시 허용 오차)
 };
+
+export const CACHE_CONSTANTS = {
+    CLEANUP_THRESHOLD_MS: 60000  // 1분 (비정상 종료 판단 기준)
+};
+
+export const ANONYMOUS_NAMES = ['Anonymous', 'anonymous'];
 
 // 직업명 영문->한글 변환 맵
 export const jobNameMap = {

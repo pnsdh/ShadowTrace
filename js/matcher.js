@@ -68,8 +68,7 @@ export class LogMatcher {
             // 각 RDPS 값이 일치하는지 확인 (소수점 차이 허용)
             for (let i = 0; i < anonymousRDPSValues.length; i++) {
                 const diff = Math.abs(anonymousRDPSValues[i] - publicRDPSValues[i]);
-                // 0.1% 이상 차이나면 불일치로 간주
-                if (diff / anonymousRDPSValues[i] > 0.001) {
+                if (diff / anonymousRDPSValues[i] > MATCHING_THRESHOLDS.RDPS_DIFF_RATIO) {
                     return false;
                 }
             }
