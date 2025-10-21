@@ -254,6 +254,31 @@ document.addEventListener('keypress', (e) => {
     }
 });
 
+// Ctrl+V 붙여넣기 지원 (모달이 열려있지 않을 때만)
+document.addEventListener('paste', (e) => {
+    // 모달이 열려있으면 무시
+    if (isAnyModalOpen()) {
+        return;
+    }
+
+    const anonymousUrlInput = document.getElementById('anonymousUrl');
+
+    // 이미 입력창에 포커스되어 있으면 기본 동작 사용
+    if (document.activeElement === anonymousUrlInput) {
+        return;
+    }
+
+    // paste 이벤트에서 클립보드 데이터 읽기 (권한 불필요)
+    const text = e.clipboardData?.getData('text/plain');
+    if (text) {
+        e.preventDefault();
+        anonymousUrlInput.value = text;
+        anonymousUrlInput.focus();
+        // 커서를 끝으로 이동
+        anonymousUrlInput.setSelectionRange(text.length, text.length);
+    }
+});
+
 // 체크박스 변경 시 저장
 document.addEventListener('DOMContentLoaded', () => {
     const searchAllFightsCheckbox = document.getElementById('searchAllFights');
