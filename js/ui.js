@@ -307,40 +307,28 @@ export async function displayResults(matches, api, allRankingsData, rankingCache
                 const firstHalf = playersData.slice(0, halfPoint);
                 const secondHalf = playersData.slice(halfPoint);
 
+                // 플레이어 HTML 생성 헬퍼 함수
+                const createPlayerHtml = (player) => {
+                    if (!player) return '';
+
+                    const displayText = `${player.name}@${player.serverNameKo} (${player.specKo})`;
+
+                    if (player.isFound) {
+                        const regionLower = detectedRegion ? detectedRegion.toLowerCase() : 'na';
+                        const serverLower = player.serverName.toLowerCase();
+                        const nameLower = player.name.toLowerCase();
+                        const characterUrl = `https://${subdomain}.fflogs.com/character/${regionLower}/${serverLower}/${encodeURIComponent(nameLower)}`;
+                        return `<a href="${characterUrl}" target="_blank" class="${player.itemClass}">${displayText}</a>`;
+                    } else {
+                        return `<div class="${player.itemClass}">${displayText}</div>`;
+                    }
+                };
+
                 // HTML 생성
                 let playersListHtml = '';
                 for (let i = 0; i < halfPoint; i++) {
-                    const leftPlayer = firstHalf[i];
-                    const rightPlayer = secondHalf[i];
-
-                    let leftHtml = '';
-                    if (leftPlayer) {
-                        if (leftPlayer.isFound) {
-                            // FFLogs 캐릭터 페이지 링크
-                            const regionLower = detectedRegion ? detectedRegion.toLowerCase() : 'na';
-                            const serverLower = leftPlayer.serverName.toLowerCase();
-                            const nameLower = leftPlayer.name.toLowerCase();
-                            const domain = detectedRegion === 'KR' ? 'ko.fflogs.com' : 'www.fflogs.com';
-                            const characterUrl = `https://${domain}/character/${regionLower}/${serverLower}/${encodeURIComponent(nameLower)}`;
-                            leftHtml = `<a href="${characterUrl}" target="_blank" class="${leftPlayer.itemClass}">${leftPlayer.name}@${leftPlayer.serverNameKo} (${leftPlayer.specKo})</a>`;
-                        } else {
-                            leftHtml = `<div class="${leftPlayer.itemClass}">${leftPlayer.name}@${leftPlayer.serverNameKo} (${leftPlayer.specKo})</div>`;
-                        }
-                    }
-
-                    let rightHtml = '';
-                    if (rightPlayer) {
-                        if (rightPlayer.isFound) {
-                            const regionLower = detectedRegion ? detectedRegion.toLowerCase() : 'na';
-                            const serverLower = rightPlayer.serverName.toLowerCase();
-                            const nameLower = rightPlayer.name.toLowerCase();
-                            const domain = detectedRegion === 'KR' ? 'ko.fflogs.com' : 'www.fflogs.com';
-                            const characterUrl = `https://${domain}/character/${regionLower}/${serverLower}/${encodeURIComponent(nameLower)}`;
-                            rightHtml = `<a href="${characterUrl}" target="_blank" class="${rightPlayer.itemClass}">${rightPlayer.name}@${rightPlayer.serverNameKo} (${rightPlayer.specKo})</a>`;
-                        } else {
-                            rightHtml = `<div class="${rightPlayer.itemClass}">${rightPlayer.name}@${rightPlayer.serverNameKo} (${rightPlayer.specKo})</div>`;
-                        }
-                    }
+                    const leftHtml = createPlayerHtml(firstHalf[i]);
+                    const rightHtml = createPlayerHtml(secondHalf[i]);
 
                     playersListHtml += `
                         <div class="player-row">
