@@ -64,22 +64,3 @@ export const serverNameMap = {
     'Tonberry': '톤베리',
     'Fenrir': '펜리르'
 };
-
-// 헬퍼 함수
-export function translateJobName(englishName) {
-    return jobNameMap[englishName] || englishName;
-}
-
-export function translateServerName(englishName, region) {
-    // KR 지역일 때만 서버명 번역, 그 외에는 원본 그대로
-    if (region === 'KR') {
-        return serverNameMap[englishName] || englishName;
-    }
-    return englishName;
-}
-
-export function getJobOrder(jobName) {
-    const jobKeys = Object.keys(jobNameMap);
-    const index = jobKeys.indexOf(jobName);
-    return index !== -1 ? index : 999;
-}
