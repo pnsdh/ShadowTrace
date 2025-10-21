@@ -256,12 +256,12 @@ export async function displayResults(matches, api, allRankingsData, rankingCache
                 // 모든 플레이어 데이터 수집
                 actors.forEach(actor => {
                     if (actor) {
-                        const playerName = actor.name || '알 수 없음';
-                        const serverName = actor.server || '알 수 없음';
+                        const playerName = actor.name;
+                        const serverName = actor.server;
                         const spec = actor.subType || actor.type || '';
 
-                        // 서버가 "알 수 없음"이면 제외
-                        if (serverName === '알 수 없음') {
+                        // 서버 정보가 없으면 제외 (NPC 등)
+                        if (!serverName) {
                             return;
                         }
 
