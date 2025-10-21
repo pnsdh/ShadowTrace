@@ -632,9 +632,9 @@ button:disabled {
     display: none;
     margin-top: 15px;
     padding: 12px;
-    background: #e8f5e9;
+    background: #e3f2fd;
     border-radius: 6px;
-    color: #2e7d32;
+    color: #1565c0;
     font-size: 13px;
     text-align: center;
     font-weight: 600;
