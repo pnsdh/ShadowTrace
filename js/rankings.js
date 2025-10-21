@@ -59,7 +59,6 @@ export async function getEncounterRankingsBatch(api, encounterId, difficulty, si
         }
     `;
 
-    const startTime = performance.now();
     let data;
     try {
         // pageCount를 기록 (캐시 포함한 전체 페이지 수)
@@ -68,9 +67,6 @@ export async function getEncounterRankingsBatch(api, encounterId, difficulty, si
         console.error(`[배치 요청 실패] ${pages.length}페이지 (${pages[0]}-${pages[pages.length-1]}) - 에러:`, error.message);
         throw error;
     }
-    const endTime = performance.now();
-
-    console.log(`[배치 요청 성공] ${pages.length}페이지 (${pages[0]}-${pages[pages.length-1]}) 요청 시간: ${(endTime - startTime).toFixed(0)}ms`);
 
     // Rate limit 정보 업데이트
     if (data.rateLimitData) {

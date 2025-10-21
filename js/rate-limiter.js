@@ -49,7 +49,6 @@ export class RateLimiter {
         const afterLen = RateLimiter.requestHistory.length;
 
         if (beforeLen !== afterLen) {
-            console.log(`[필터링] ${beforeLen} -> ${afterLen}, cutoff=${new Date(cutoff).toISOString()}`);
             RateLimiter.saveRequestHistory(); // 필터링 후 저장
         }
 

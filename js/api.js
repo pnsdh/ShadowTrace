@@ -62,7 +62,6 @@ export class FFLogsAPI {
         const availableSlots = RateLimiter.getAvailableRequestSlots();
         if (availableSlots < 1) {
             const waitTime = RateLimiter.getWaitTimeForSlots(1);
-            console.log(`[query 대기] HTTP 요청 1개 슬롯 필요, ${availableSlots}개 사용 가능, ${Math.ceil(waitTime/1000)}초 대기...`);
 
             // 대기 플래그 설정 및 주기적 업데이트 중지
             this.isWaiting = true;
@@ -111,9 +110,7 @@ export class FFLogsAPI {
         // Rate limit 추적: HTTP 요청은 항상 1회로 카운트 (배치 크기와 무관)
         // 장기 포인트(FFLogs rateLimitData)는 requestCount만큼 증가하지만,
         // 단기 포인트(HTTP 요청 횟수)는 항상 1씩 증가
-        console.log(`[query 전] requestCount=${requestCount}, 현재 HTTP 요청 total=${RateLimiter.getRecentRequestCount()}`);
         RateLimiter.addRequestRecord(1);
-        console.log(`[query 후] HTTP 요청 total=${RateLimiter.getRecentRequestCount()}, historyLen=${RateLimiter.requestHistory.length}`);
 
         const data = await response.json();
         if (data.errors) {

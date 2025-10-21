@@ -23,14 +23,12 @@ export function detectRegion(report) {
                 const firstChar = role.characters[0];
                 if (firstChar.server && firstChar.server.region) {
                     const region = firstChar.server.region;
-                    console.log(`리포트에서 region ${region} 감지`);
                     return region;
                 }
             }
         }
     }
 
-    console.log('지역을 감지하지 못했습니다. 전체 지역에서 검색합니다.');
     return null;
 }
 
@@ -44,7 +42,6 @@ export function detectPartition(report, region) {
     // rankings 데이터에서 partition 추출
     if (report.rankings && report.rankings.data && report.rankings.data.length > 0) {
         const partition = report.rankings.data[0].partition;
-        console.log(`리포트에서 partition ${partition} 감지`);
 
         // zone.partitions에서 해당 partition의 이름 찾기
         let partitionName = null;
@@ -60,7 +57,6 @@ export function detectPartition(report, region) {
 
     // partition이 없으면 기본값 사용
     const partition = (region === 'KR') ? SEARCH_CONSTANTS.KR_PARTITION : SEARCH_CONSTANTS.DEFAULT_PARTITION;
-    console.log(`기본 partition ${partition} 사용`);
     return { partition, partitionName: null };
 }
 
