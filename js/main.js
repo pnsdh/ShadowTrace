@@ -293,8 +293,8 @@ window.closeSettingsModal = closeSettingsModal;
 window.openCacheModal = () => openCacheModal(rankingCache);
 window.closeCacheModal = closeCacheModal;
 window.saveSettings = saveSettings;
-window.clearEncounterCache = (encounterId, region, partition) =>
-    clearEncounterCache(rankingCache, encounterId, region, partition);
+window.clearEncounterCache = (encounterId, region, partition, encounterName, partitionName) =>
+    clearEncounterCache(rankingCache, encounterId, region, partition, encounterName, partitionName);
 window.clearAllCache = () => clearAllCache(rankingCache);
 window.startSearch = startSearch;
 window.stopSearch = stopSearch;

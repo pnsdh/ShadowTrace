@@ -101,7 +101,7 @@ export async function updateCacheDisplay(rankingCache) {
                     <span class="cache-item-info"><strong>${displayName}</strong></span>
                     <span class="cache-item-info">${info.count}개 페이지, ${info.sizeFormatted} (${latestTime})</span>
                 </div>
-                <button onclick='clearEncounterCache(${JSON.stringify(info.encounterId)}, ${JSON.stringify(info.region)}, ${JSON.stringify(info.partition)})' class="cache-delete-btn">
+                <button onclick='clearEncounterCache(${JSON.stringify(info.encounterId)}, ${JSON.stringify(info.region)}, ${JSON.stringify(info.partition)}, ${JSON.stringify(info.encounterName)}, ${JSON.stringify(info.partitionName)})' class="cache-delete-btn">
                     삭제
                 </button>
             </div>

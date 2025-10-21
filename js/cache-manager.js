@@ -12,15 +12,28 @@ import { showConfirm } from './modal.js';
  * @param {number} encounterId - Encounter ID
  * @param {string} region - 지역 (KR, NA, EU 등)
  * @param {number} partition - 파티션 번호
+ * @param {string} encounterName - Encounter 이름
+ * @param {string|null} partitionName - 파티션 이름
  */
-export async function clearEncounterCache(rankingCache, encounterId, region, partition) {
+export async function clearEncounterCache(rankingCache, encounterId, region, partition, encounterName, partitionName) {
     if (!encounterId || encounterId === 'Unknown') {
         showError('유효하지 않은 캐시입니다.');
         return;
     }
 
-    const partitionText = partition ? ` (Partition ${partition})` : '';
-    const confirmed = await showConfirm('캐시 삭제', `이 보스의 캐시를 삭제하시겠습니까?${partitionText}`);
+    // 파티션 표시 생성
+    const partitionNum = partition === 'default' ? null : partition;
+    let partitionDisplay;
+    if (partitionName) {
+        partitionDisplay = `P${partitionNum} - ${partitionName}`;
+    } else if (partitionNum) {
+        partitionDisplay = `P${partitionNum}`;
+    } else {
+        partitionDisplay = 'P?';
+    }
+
+    const displayName = `${encounterName}, ${region}, ${partitionDisplay}`;
+    const confirmed = await showConfirm('캐시 삭제', `다음 캐시를 삭제하시겠습니까?<br><br><strong>${displayName}</strong>`);
 
     if (confirmed) {
         await rankingCache.clearEncounter(encounterId, region, partition);
