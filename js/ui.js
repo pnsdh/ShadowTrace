@@ -63,10 +63,6 @@ export function showSuccess(message) {
     setTimeout(() => successEl.classList.remove('active'), 5000);
 }
 
-export function hideSuccess() {
-    document.getElementById('success').classList.remove('active');
-}
-
 // 캐시 정보 표시
 export async function updateCacheDisplay(rankingCache) {
     const encounterData = await rankingCache.getCacheInfoByEncounter();

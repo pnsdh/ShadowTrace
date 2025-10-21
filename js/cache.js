@@ -1,4 +1,4 @@
-import { ANONYMOUS_NAMES } from './constants.js';
+import { ANONYMOUS_NAMES, CACHE_CONSTANTS } from './constants.js';
 
 // ===== 캐시 관리 (IndexedDB) =====
 export class RankingCache {
@@ -183,9 +183,7 @@ export class RankingCache {
         const searchStartTime = parseInt(searchInProgress);
         const now = Date.now();
 
-        // CACHE_CONSTANTS를 import 해야 하므로 일단 하드코딩 유지
-        // (circular dependency 방지)
-        if (now - searchStartTime < 60000) {
+        if (now - searchStartTime < CACHE_CONSTANTS.CLEANUP_THRESHOLD_MS) {
             return; // 최근 검색이므로 유지
         }
 
