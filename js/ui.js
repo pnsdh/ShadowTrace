@@ -19,6 +19,18 @@ function getJobOrder(jobName) {
     return index !== -1 ? index : 999;
 }
 
+// UTC 타임스탬프를 로컬 시간 문자열로 변환 (YYYY-MM-DD HH:MM:SS)
+function formatLocalTime(timestamp) {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 // ===== UI 업데이트 함수들 =====
 export function showLoading(message) {
     document.getElementById('loading').classList.add('active');
@@ -57,14 +69,7 @@ export async function updateCacheDisplay(rankingCache) {
     let html = '<div class="cache-list">';
     Object.keys(encounterData).sort().forEach(displayKey => {
         const info = encounterData[displayKey];
-        const latestTime = new Date(info.latest).toLocaleString('ko-KR', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        });
+        const latestTime = formatLocalTime(info.latest);
 
         // 파티션 표시 생성
         const partitionNum = info.partition === 'default' ? null : info.partition;
@@ -224,7 +229,7 @@ export async function displayResults(matches, api, allRankingsData, rankingCache
 
     // 각 그룹별로 플레이어 정보 가져오기
     for (const group of sortedGroups) {
-        const timeFormatted = new Date(group.startTime).toLocaleString('ko-KR', { hour12: false });
+        const timeFormatted = formatLocalTime(group.startTime);
         const durationSec = (group.duration / 1000).toFixed(1);
 
         // 플레이어 목록 가져오기
