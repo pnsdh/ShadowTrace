@@ -1,23 +1,26 @@
 # ShadowTrace
 
-FFLogs 익명 로그의 원본 로그를 찾는 도구
-
-## 사용 방법
-
-1. [FFLogs API Clients](https://www.fflogs.com/api/clients/)에서 Client를 생성하고 API 키 입력
-2. 익명 로그 URL 입력 (특정 Fight URL 권장, 예: `?fight=7`)
-3. 자동으로 원본 로그 검색
+주어진 FFLogs의 익명 로그와 일치하는 원본 로그를 찾아주는 클라이언트 사이드 정적 웹앱
 
 ## 기능
 
-- 시간, 전투 길이, 플레이어 정보 기반 매칭
-- 랭킹 데이터 자동 캐시 (IndexedDB)
-- 캐시 내보내기/가져오기 (Gzip 압축)
+- 랭킹 데이터를 캐시하여 시간, 전투 길이, RDPS 기반으로 원본 로그 매칭
+- 캐시된 데이터는 IndexedDB를 통해 저장됨 (내보내기/가져오기 가능)
 
-## 요구사항
+## 사용 방법
 
-- Chrome 80+ / Firefox 113+
-- FFLogs API 키
+1. API 설정 - [FFLogs API Clients](https://www.fflogs.com/api/clients/)에서 Client를 생성하고 API 키 입력
+2. 익명 로그 URL 입력 (특정 Fight URL 권장, 예: `?fight=7`)
+3. 원본 로그 찾기
+
+## 주의 사항
+
+- 로그가 소속된 파티션의 정보를 처음 불러오는 경우 모든 랭킹 데이터를 받아오기 때문에 시간이 꽤 소요됨
+- 한섭은 괜찮지만 글섭은 데이터가 정말 많기 때문에 꽤 오래 기다려야 함
+
+## 기타 사항
+
+- Claude Code에게 많은 작업을 맡겼기 때문에 코드나 작동에서 이상한 부분이 있을 수 있음
 
 ## 라이선스
 
