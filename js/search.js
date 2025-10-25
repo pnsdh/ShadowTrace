@@ -18,7 +18,8 @@ import { getEncounterRankingsBatch, findMaxPages } from './rankings.js';
  * @param {boolean} options.multipleSearchMode - 여러 파이트 검색 모드
  * @param {Function|null} options.progressCallback - 진행 상황 콜백
  * @param {Array} options.fights - 검색할 fight 목록 (필수)
- * @returns {Promise<Object>} { allMatches, allRankingsData, matchedFight, aborted }
+ * @returns {Promise<Object>} { allMatches, allRankingsData, matchedFight }
+ * @throws {AbortError} 검색이 취소된 경우
  */
 export async function searchFights(report, encounterQuery, context, options = {}) {
     const {
@@ -190,6 +191,11 @@ export async function searchFights(report, encounterQuery, context, options = {}
                     break; // 성공
 
                 } catch (error) {
+                    // AbortError는 무시 (정상 취소)
+                    if (error.name === 'AbortError') {
+                        break;
+                    }
+
                     if (retry < MAX_RETRIES) {
                         // 재시도: 잠시 대기 후 재시도
                         console.warn(`[배치 실패 ${retry + 1}/${MAX_RETRIES + 1}] ${error.message}, 재시도...`);
@@ -281,15 +287,14 @@ export async function searchFights(report, encounterQuery, context, options = {}
                     return {
                         allMatches,
                         allRankingsData,
-                        matchedFight,
-                        aborted: false
+                        matchedFight
                     };
                 }
             }
         }
     }
 
-    return { allMatches, allRankingsData, matchedFight, aborted: false };
+    return { allMatches, allRankingsData, matchedFight };
 }
 
 /**

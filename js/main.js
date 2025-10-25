@@ -18,7 +18,7 @@ import { Report, EncounterQuery, SearchContext } from './models.js';
 const rankingCache = new RankingCache();
 let lastSearchParams = null;
 let globalApiInstance = null; // 전역 API 인스턴스 (싱글톤)
-let isSearching = false; // 검색 진행 중 플래그
+let searchCancelled = false; // 검색 취소 플래그
 
 // ===== 메인 검색 함수 =====
 /**
@@ -69,8 +69,8 @@ async function startSearch() {
     // API 키 저장
     saveApiKeys();
 
-    // 검색 시작 플래그 설정
-    isSearching = true;
+    // 검색 시작 시 취소 플래그 초기화
+    searchCancelled = false;
 
     try {
         const mainStatus = '초기화';
@@ -92,7 +92,6 @@ async function startSearch() {
 
         // 익명 로그 정보 가져오기
         const reportData = await api.getAnonymousReport(reportCode);
-        if (!isSearching) return;
 
         // Report 인스턴스 생성
         const report = new Report(reportData, reportCode);
@@ -108,7 +107,6 @@ async function startSearch() {
         showLoading('파티션 정보', '조회 중...');
         const firstFight = report.getFirstFight();
         const partitions = await api.getEncounterPartitions(firstFight.encounterID);
-        if (!isSearching) return;
 
         const partitionData = partitions.find(p => p.id === partition);
         const partitionName = partitionData?.compactName || null;
@@ -149,6 +147,9 @@ async function startSearch() {
         // 진행 상황 콜백: 여러 파이트 검색 모드에서 즉시 결과 표시
         let isFirstResult = true;
         const progressCallback = isMultipleSearchMode ? async (matches, rankingsData, fight) => {
+            // 검색이 취소되었으면 결과 표시하지 않음
+            if (searchCancelled) return;
+
             const matchedFightInfo = {
                 encounterId: fight.encounterID,
                 difficulty: fight.difficulty,
@@ -174,11 +175,8 @@ async function startSearch() {
             }
         );
 
-        if (result.aborted) {
-            await rankingCache.abortSearch();
-            await updateCacheDisplay(rankingCache);
-            hideLoading();
-            showError(ERROR_MESSAGES.SEARCH_ABORTED);
+        // 검색이 취소되었으면 결과 표시하지 않음
+        if (searchCancelled) {
             return;
         }
 
@@ -207,18 +205,13 @@ async function startSearch() {
         }
 
     } catch (error) {
-        if (error.name === 'AbortError' || !isSearching) {
-            await rankingCache.abortSearch();
-            await updateCacheDisplay(rankingCache);
-            hideLoading();
-            showError(ERROR_MESSAGES.SEARCH_ABORTED);
+        // 취소된 경우 이미 처리됨 (stopSearch에서)
+        if (searchCancelled) {
             return;
         }
         hideLoading();
         showError(error.message);
         console.error('Error:', error);
-    } finally {
-        isSearching = false;
     }
 }
 
@@ -226,8 +219,10 @@ async function startSearch() {
  * 검색을 중단합니다
  */
 async function stopSearch() {
-    if (isSearching && globalApiInstance) {
-        isSearching = false;
+    if (globalApiInstance) {
+        // 취소 플래그 설정 (UI 레벨 차단)
+        searchCancelled = true;
+
         await handleSearchAbort(rankingCache, globalApiInstance);
         hideLoading();
         showError(ERROR_MESSAGES.SEARCH_ABORTED);

@@ -75,7 +75,11 @@ export class LogMatcher {
 
             return true;
         } catch (e) {
-            console.warn('RDPS 검증 실패:', e);
+            // AbortError도 포함하여 모든 에러는 검증 실패로 처리
+            // (취소는 UI 레벨에서 플래그로 처리)
+            if (e.name !== 'AbortError') {
+                console.warn('RDPS 검증 실패:', e);
+            }
             return false;
         }
     }
