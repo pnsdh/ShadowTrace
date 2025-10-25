@@ -3,7 +3,7 @@
  * 메인 엔트리 포인트
  */
 
-import { STORAGE_KEYS } from './constants.js';
+import { STORAGE_KEYS, ERROR_MESSAGES } from './constants.js';
 import { RankingCache } from './cache.js';
 import { FFLogsAPI } from './api.js';
 import { showLoading, hideLoading, showError, hideError, updateCacheDisplay, displayResults } from './ui.js';
@@ -16,9 +16,9 @@ import { Report, EncounterQuery, SearchContext } from './models.js';
 
 // ===== 전역 상태 =====
 const rankingCache = new RankingCache();
-let currentSearchAbortController = null;
 let lastSearchParams = null;
 let globalApiInstance = null; // 전역 API 인스턴스 (싱글톤)
+let isSearching = false; // 검색 진행 중 플래그
 
 // ===== 메인 검색 함수 =====
 /**
@@ -34,19 +34,19 @@ async function startSearch() {
     const anonymousUrl = document.getElementById('anonymousUrl').value.trim();
 
     if (!clientId || !clientSecret) {
-        showError('API 설정에서 Client ID와 Client Secret을 입력한 뒤 사용하세요.');
+        showError(ERROR_MESSAGES.NO_API_KEYS);
         return;
     }
 
     if (!anonymousUrl) {
-        showError('익명 로그 URL을 입력하세요.');
+        showError(ERROR_MESSAGES.NO_ANONYMOUS_URL);
         return;
     }
 
     // URL에서 report code 추출
     const codeMatch = anonymousUrl.match(/reports\/(a:[A-Za-z0-9]+)/);
     if (!codeMatch) {
-        showError('올바른 익명 로그 URL이 아닙니다. (a:로 시작해야 합니다)');
+        showError(ERROR_MESSAGES.INVALID_ANONYMOUS_URL);
         return;
     }
 
@@ -69,9 +69,8 @@ async function startSearch() {
     // API 키 저장
     saveApiKeys();
 
-    // AbortController 생성
-    currentSearchAbortController = new AbortController();
-    const signal = currentSearchAbortController.signal;
+    // 검색 시작 플래그 설정
+    isSearching = true;
 
     try {
         const mainStatus = '초기화';
@@ -93,7 +92,7 @@ async function startSearch() {
 
         // 익명 로그 정보 가져오기
         const reportData = await api.getAnonymousReport(reportCode);
-        if (signal.aborted) return;
+        if (!isSearching) return;
 
         // Report 인스턴스 생성
         const report = new Report(reportData, reportCode);
@@ -109,7 +108,7 @@ async function startSearch() {
         showLoading('파티션 정보', '조회 중...');
         const firstFight = report.getFirstFight();
         const partitions = await api.getEncounterPartitions(firstFight.encounterID);
-        if (signal.aborted) return;
+        if (!isSearching) return;
 
         const partitionData = partitions.find(p => p.id === partition);
         const partitionName = partitionData?.compactName || null;
@@ -179,7 +178,7 @@ async function startSearch() {
             await rankingCache.abortSearch();
             await updateCacheDisplay(rankingCache);
             hideLoading();
-            showError('검색이 중단되었습니다.');
+            showError(ERROR_MESSAGES.SEARCH_ABORTED);
             return;
         }
 
@@ -208,18 +207,18 @@ async function startSearch() {
         }
 
     } catch (error) {
-        if (error.name === 'AbortError' || currentSearchAbortController?.signal.aborted) {
+        if (error.name === 'AbortError' || !isSearching) {
             await rankingCache.abortSearch();
             await updateCacheDisplay(rankingCache);
             hideLoading();
-            showError('검색이 중단되었습니다.');
+            showError(ERROR_MESSAGES.SEARCH_ABORTED);
             return;
         }
         hideLoading();
         showError(error.message);
         console.error('Error:', error);
     } finally {
-        currentSearchAbortController = null;
+        isSearching = false;
     }
 }
 
@@ -227,10 +226,11 @@ async function startSearch() {
  * 검색을 중단합니다
  */
 async function stopSearch() {
-    if (currentSearchAbortController) {
-        currentSearchAbortController = await handleSearchAbort(currentSearchAbortController, rankingCache, globalApiInstance);
+    if (isSearching && globalApiInstance) {
+        isSearching = false;
+        await handleSearchAbort(rankingCache, globalApiInstance);
         hideLoading();
-        showError('검색이 중단되었습니다.');
+        showError(ERROR_MESSAGES.SEARCH_ABORTED);
     }
 }
 
@@ -254,6 +254,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 모달 외부 클릭 이벤트 설정
     setupModalClickOutside();
+
+    // 이벤트 리스너 등록
+    document.getElementById('searchBtn').addEventListener('click', startSearch);
+    document.getElementById('stopBtn').addEventListener('click', stopSearch);
+    document.getElementById('openSettingsBtn').addEventListener('click', openSettingsModal);
+    document.getElementById('closeSettingsBtn').addEventListener('click', closeSettingsModal);
+    document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+    document.getElementById('openCacheBtn').addEventListener('click', openCacheModal);
+    document.getElementById('closeCacheBtn').addEventListener('click', closeCacheModal);
+    document.getElementById('exportCacheBtn').addEventListener('click', exportCache);
+    document.getElementById('importCacheBtn').addEventListener('click', () => {
+        document.getElementById('cacheImportInput').click();
+    });
+    document.getElementById('clearAllCacheBtn').addEventListener('click', clearAllCache);
+    document.getElementById('cacheImportInput').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            importCache(rankingCache, file);
+            event.target.value = ''; // 파일 입력 초기화
+        }
+    });
 
     // 익명 로그 URL 입력창에 자동 포커스
     document.getElementById('anonymousUrl').focus();
@@ -307,26 +328,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// ===== 전역 함수 노출 (HTML onclick에서 사용) =====
-window.openSettingsModal = openSettingsModal;
-window.closeSettingsModal = closeSettingsModal;
-window.openCacheModal = () => openCacheModal(rankingCache);
-window.closeCacheModal = closeCacheModal;
-window.saveSettings = saveSettings;
+// ===== 전역 함수 노출 (동적 생성 요소 및 디버깅용) =====
+// 동적으로 생성되는 버튼들이 사용하는 함수들
 window.clearEncounterCache = (encounterId, region, partition, encounterName, partitionName) =>
     clearEncounterCache(rankingCache, encounterId, region, partition, encounterName, partitionName);
-window.clearAllCache = () => clearAllCache(rankingCache);
-window.startSearch = startSearch;
-window.stopSearch = stopSearch;
 window.refreshCacheAndSearch = () => refreshCacheAndSearch(rankingCache, lastSearchParams, startSearch);
-window.exportCache = () => exportCache(rankingCache);
-window.handleImportCache = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-        importCache(rankingCache, file);
-        event.target.value = ''; // 파일 입력 초기화
-    }
-};
+
+// 디버깅 및 개발용 전역 접근
 window.rankingCache = rankingCache;
 Object.defineProperty(window, 'lastSearchParams', {
     get: () => lastSearchParams

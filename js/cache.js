@@ -187,7 +187,7 @@ export class RankingCache {
             return; // 최근 검색이므로 유지
         }
 
-        console.log('이전 세션의 불완전한 캐시를 정리합니다...');
+        console.info('이전 세션의 불완전한 캐시를 정리합니다...');
 
         // 검색 시작 시간 이후에 저장된 캐시 삭제
         const keys = await this.storage.keys();
@@ -202,7 +202,7 @@ export class RankingCache {
         }
 
         if (deletedCount > 0) {
-            console.log(`불완전한 캐시 ${deletedCount}개를 삭제했습니다.`);
+            console.info(`불완전한 캐시 ${deletedCount}개를 삭제했습니다.`);
         }
 
         // 검색 완료 표시 제거

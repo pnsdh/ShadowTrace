@@ -33,6 +33,14 @@ export const CACHE_CONSTANTS = {
 
 export const ANONYMOUS_NAMES = ['Anonymous', 'anonymous'];
 
+export const ERROR_MESSAGES = {
+    NO_API_KEYS: 'API 설정에서 Client ID와 Client Secret을 입력한 뒤 사용하세요.',
+    NO_ANONYMOUS_URL: '익명 로그 URL을 입력하세요.',
+    INVALID_ANONYMOUS_URL: '올바른 익명 로그 URL이 아닙니다. (a:로 시작해야 합니다)',
+    NO_BOSS_FIGHTS: '보스 전투를 찾을 수 없습니다.',
+    SEARCH_ABORTED: '검색이 중단되었습니다.'
+};
+
 // 직업명 영문->한글 변환 맵
 export const jobNameMap = {
     // Tank
