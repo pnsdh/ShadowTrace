@@ -168,12 +168,43 @@ export async function getEncounterRankings(encounterQuery, page = 1, context, up
 }
 
 /**
- * 이진 탐색으로 최대 페이지 수를 찾습니다
+ * 지수 탐색으로 최대 페이지 수를 찾습니다
+ * 1. 지수적으로 증가하면서 상한선 찾기 (1, 2, 4, 8, 16, 32, ...)
+ * 2. 확정된 범위 내에서 이진 탐색
  */
 export async function findMaxPages(encounterQuery, context) {
-    let low = 1;
-    let high = SEARCH_CONSTANTS.MAX_PAGES;
+    // 1단계: 지수 탐색으로 상한선 찾기
+    let probe = 1;
     let maxValidPage = 1;
+
+    while (probe <= SEARCH_CONSTANTS.MAX_PAGES) {
+        try {
+            const rankings = await getEncounterRankings(
+                encounterQuery, probe, context, () => {}
+            );
+
+            if (rankings && rankings.rankings && rankings.rankings.length > 0) {
+                // 유효한 페이지 발견
+                maxValidPage = probe;
+                probe *= 2; // 지수적으로 증가
+            } else {
+                // 빈 페이지 발견 - 상한선 확정
+                break;
+            }
+        } catch (e) {
+            // 오류 발생 시 상한선 확정
+            break;
+        }
+    }
+
+    // 2단계: 이진 탐색으로 정확한 최대값 찾기
+    let low = maxValidPage + 1; // 마지막 유효 페이지 다음부터
+    let high = Math.min(probe, SEARCH_CONSTANTS.MAX_PAGES);
+
+    // low가 high보다 크면 이미 정확한 값을 찾은 것
+    if (low > high) {
+        return maxValidPage;
+    }
 
     while (low <= high) {
         const mid = Math.floor((low + high) / 2);
