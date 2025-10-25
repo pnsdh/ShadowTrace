@@ -446,7 +446,7 @@ export function updateApiUsageDisplay(apiInstance, countdownMessage = null) {
 function updateLongTermUsage(apiInstance, longEl) {
     if (apiInstance.rateLimitPerHour !== null && apiInstance.pointsSpent !== null) {
         const percentage = ((apiInstance.pointsSpent / apiInstance.rateLimitPerHour) * 100).toFixed(1);
-        const resetMinutes = apiInstance.pointsResetIn ? Math.ceil(apiInstance.pointsResetIn / 60) : 0;
+        const resetMinutes = apiInstance.pointsResetIn ? Math.max(0, Math.ceil(apiInstance.pointsResetIn / 60)) : 0;
         const colorClass = getUsageColorClass(parseFloat(percentage));
 
         longEl.innerHTML = `1시간 장기 API 포인트 (${resetMinutes}분 후 리셋)\n<span class="usage-value ${colorClass}">${apiInstance.pointsSpent} / ${apiInstance.rateLimitPerHour} (${percentage}% 사용)</span>`;

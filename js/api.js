@@ -70,7 +70,7 @@ export class FFLogsAPI {
         const availablePoints = this.getAvailablePointSlots();
 
         if (availablePoints !== null && availablePoints < estimatedPoints) {
-            const resetMinutes = Math.ceil(this.pointsResetIn / 60);
+            const resetMinutes = Math.max(0, Math.ceil(this.pointsResetIn / 60));
             throw new Error(
                 `포인트 부족: 약 ${estimatedPoints.toFixed(1)} 포인트 필요하지만, ` +
                 `${availablePoints.toFixed(1)} 포인트만 남아있습니다. (${resetMinutes}분 후 리셋)`
