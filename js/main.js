@@ -256,13 +256,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('openSettingsBtn').addEventListener('click', openSettingsModal);
     document.getElementById('closeSettingsBtn').addEventListener('click', closeSettingsModal);
     document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
-    document.getElementById('openCacheBtn').addEventListener('click', openCacheModal);
+    document.getElementById('openCacheBtn').addEventListener('click', () => openCacheModal(rankingCache));
     document.getElementById('closeCacheBtn').addEventListener('click', closeCacheModal);
-    document.getElementById('exportCacheBtn').addEventListener('click', exportCache);
+    document.getElementById('exportCacheBtn').addEventListener('click', () => exportCache(rankingCache));
     document.getElementById('importCacheBtn').addEventListener('click', () => {
         document.getElementById('cacheImportInput').click();
     });
-    document.getElementById('clearAllCacheBtn').addEventListener('click', clearAllCache);
+    document.getElementById('clearAllCacheBtn').addEventListener('click', () => clearAllCache(rankingCache));
     document.getElementById('cacheImportInput').addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (file) {
