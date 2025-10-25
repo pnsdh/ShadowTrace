@@ -8,7 +8,10 @@ import { SEARCH_CONSTANTS } from './constants.js';
 /**
  * 여러 페이지의 랭킹 데이터를 배치로 조회합니다
  */
-export async function getEncounterRankingsBatch(api, encounterId, difficulty, size, region, startPage, pageCount, partition, rankingCache, updateCacheDisplay, partitionName = null, signal = null) {
+export async function getEncounterRankingsBatch(encounterQuery, startPage, pageCount, context, updateCacheDisplay) {
+    const { encounterId, difficulty, size, region, partition, partitionName } = encounterQuery;
+    const { api, rankingCache } = context;
+
     const regionFilter = region ? `, serverRegion: "${region}"` : '';
     const partitionFilter = partition ? `, partition: ${partition}` : '';
 
@@ -62,7 +65,7 @@ export async function getEncounterRankingsBatch(api, encounterId, difficulty, si
     let data;
     try {
         // pageCount를 기록 (캐시 포함한 전체 페이지 수)
-        data = await api.query(query, {}, pageCount, signal);
+        data = await api.query(query, {}, pageCount);
     } catch (error) {
         console.error(`[배치 요청 실패] ${pages.length}페이지 (${pages[0]}-${pages[pages.length-1]}) - 에러:`, error.message);
         throw error;
@@ -71,11 +74,6 @@ export async function getEncounterRankingsBatch(api, encounterId, difficulty, si
     // Rate limit 정보 업데이트
     if (data.rateLimitData) {
         api.updateRateLimitInfo(data.rateLimitData);
-    }
-
-    // 중단 체크: 응답은 받았지만 취소되었으면 캐시 저장 안 함
-    if (signal && signal.aborted) {
-        throw new Error('검색이 중단되었습니다.');
     }
 
     // 페이지별 결과 파싱 및 캐시 저장
@@ -107,7 +105,10 @@ export async function getEncounterRankingsBatch(api, encounterId, difficulty, si
 /**
  * 단일 페이지의 랭킹 데이터를 조회합니다
  */
-export async function getEncounterRankings(api, encounterId, difficulty, size, region, page = 1, partition, rankingCache, updateCacheDisplay, partitionName = null, signal = null) {
+export async function getEncounterRankings(encounterQuery, page = 1, context, updateCacheDisplay) {
+    const { encounterId, difficulty, size, region, partition, partitionName } = encounterQuery;
+    const { api, rankingCache } = context;
+
     // 캐시 확인 (partition 포함)
     const cached = await rankingCache.get(encounterId, difficulty, size, region, page, partition);
     if (cached) {
@@ -140,7 +141,7 @@ export async function getEncounterRankings(api, encounterId, difficulty, size, r
         }
     `;
 
-    const data = await api.query(query, {}, 1, signal);
+    const data = await api.query(query, {}, 1);
 
     // Rate limit 정보 업데이트
     if (data.rateLimitData) {
@@ -169,23 +170,17 @@ export async function getEncounterRankings(api, encounterId, difficulty, size, r
 /**
  * 이진 탐색으로 최대 페이지 수를 찾습니다
  */
-export async function findMaxPages(api, encounterId, difficulty, size, region, partition, rankingCache, partitionName = null, signal = null) {
+export async function findMaxPages(encounterQuery, context) {
     let low = 1;
     let high = SEARCH_CONSTANTS.MAX_PAGES;
     let maxValidPage = 1;
 
     while (low <= high) {
-        // 중단 신호 체크
-        if (signal && signal.aborted) {
-            throw new Error('검색이 중단되었습니다.');
-        }
-
         const mid = Math.floor((low + high) / 2);
 
         try {
             const rankings = await getEncounterRankings(
-                api, encounterId, difficulty, size, region, mid, partition,
-                rankingCache, () => {}, partitionName, signal // signal 전달
+                encounterQuery, mid, context, () => {}
             );
 
             if (rankings && rankings.rankings && rankings.rankings.length > 0) {
@@ -197,10 +192,6 @@ export async function findMaxPages(api, encounterId, difficulty, size, region, p
                 high = mid - 1;
             }
         } catch (e) {
-            // 중단된 경우 즉시 에러를 전파
-            if (e.message === '검색이 중단되었습니다.') {
-                throw e;
-            }
             // 오류 발생 시 더 작은 범위로
             high = mid - 1;
         }

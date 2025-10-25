@@ -86,21 +86,30 @@ export function filterAndPrepareFights(report, fightId) {
 
 /**
  * 공통 파이트 검색 함수
- * @param {Array} fights - 검색할 fight 목록
- * @param {Object} report - FFLogs 리포트 데이터
- * @param {string} reportCode - 리포트 코드
- * @param {FFLogsAPI} api - API 인스턴스
- * @param {string|null} region - 지역
- * @param {number} partition - 파티션 번호
- * @param {string|null} partitionName - 파티션 이름
- * @param {AbortSignal} signal - 중단 신호
- * @param {RankingCache} rankingCache - 랭킹 캐시 인스턴스
- * @param {number} startIndex - 시작 인덱스
- * @param {boolean} multipleSearchMode - 여러 파이트 검색 모드
- * @param {Function|null} progressCallback - 진행 상황 콜백
+ * @param {Report} report - Report 인스턴스
+ * @param {EncounterQuery} encounterQuery - Encounter 쿼리 파라미터
+ * @param {SearchContext} context - 검색 컨텍스트 (api, rankingCache)
+ * @param {Object} options - 검색 옵션
+ * @param {number} options.startIndex - 시작 인덱스
+ * @param {boolean} options.multipleSearchMode - 여러 파이트 검색 모드
+ * @param {Function|null} options.progressCallback - 진행 상황 콜백
+ * @param {Array} options.fights - 검색할 fight 목록 (필수)
  * @returns {Promise<Object>} { allMatches, allRankingsData, matchedFight, aborted }
  */
-export async function searchFights(fights, report, reportCode, api, region, partition, partitionName, signal, rankingCache, startIndex = 0, multipleSearchMode = false, progressCallback = null) {
+export async function searchFights(report, encounterQuery, context, options = {}) {
+    const {
+        startIndex = 0,
+        multipleSearchMode = false,
+        progressCallback = null,
+        fights
+    } = options;
+
+    if (!fights || !Array.isArray(fights)) {
+        throw new Error('options.fights is required and must be an array');
+    }
+
+    const { api, rankingCache } = context;
+    const { region, partition, partitionName } = encounterQuery;
     const allMatches = [];
     const allRankingsData = [];
     let currentFightIndex = startIndex;
@@ -136,7 +145,6 @@ export async function searchFights(fights, report, reportCode, api, region, part
     const regionText = region ? ` (${region}, ${partitionText})` : ` (전체, ${partitionText})`;
 
     for (const fight of sortedFights) {
-        if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
 
         currentFightIndex++;
         const fightProgressText = totalFights > 1 ? ` [${currentFightIndex}/${totalFights}]` : '';
@@ -168,24 +176,22 @@ export async function searchFights(fights, report, reportCode, api, region, part
             const mainStatus = `${fight.name}${fightProgressText} (${region || '전체'}, ${partitionText})`;
             const detailStatus = `전체 페이지 수 확인 중...`;
             showLoading(mainStatus, detailStatus);
-            estimatedMaxPages = await findMaxPages(
-                api,
-                fight.encounterID,
-                fight.difficulty,
-                fight.size,
+
+            // Fight별 EncounterQuery 생성
+            const fightQuery = {
+                encounterId: fight.encounterID,
+                difficulty: fight.difficulty,
+                size: fight.size,
                 region,
                 partition,
-                rankingCache,
-                partitionName,
-                signal
-            );
+                partitionName
+            };
+            estimatedMaxPages = await findMaxPages(fightQuery, context);
         }
-
-        if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
 
         // 포인트 체크는 query() 메서드에서 자동으로 수행됨
 
-        const matcher = new LogMatcher(fight, report.startTime, reportCode);
+        const matcher = new LogMatcher(fight, report.startTime, report.code);
 
         let page = 1;
         let hasMorePages = true;
@@ -201,25 +207,33 @@ export async function searchFights(fights, report, reportCode, api, region, part
         const MAX_BATCH_SIZE = SEARCH_CONSTANTS.MAX_BATCH_SIZE;
         const maxPage = hasCache && cachedMaxPage ? cachedMaxPage : estimatedMaxPages;
 
-        while (hasMorePages && page <= SEARCH_CONSTANTS.MAX_PAGES) {
-            if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
+        // Fight별 EncounterQuery 생성
+        const fightQuery = {
+            encounterId: fight.encounterID,
+            difficulty: fight.difficulty,
+            size: fight.size,
+            region,
+            partition,
+            partitionName
+        };
 
+        while (hasMorePages && page <= SEARCH_CONSTANTS.MAX_PAGES) {
             // 캐시 모드에서 현재 페이지가 캐시된 최대 페이지를 초과하면 종료
             if (hasCache && cachedMaxPage && page > cachedMaxPage) {
                 break;
             }
 
             // 남은 페이지 계산
-            const remainingPages = maxPage ? maxPage - page + 1 : 999;
+            const remainingPages = maxPage ? maxPage - page + 1 : SEARCH_CONSTANTS.MAX_PAGES;
 
             // 동적 배치 사이즈 계산
             // query() 메서드에서 자동으로 대기하므로 여기서는 크기만 결정
             const availablePoints = api.getAvailablePointSlots();
             const dynamicBatchSize = Math.min(
                 MAX_BATCH_SIZE,
-                availablePoints || 999,
+                availablePoints || SEARCH_CONSTANTS.MAX_PAGES,
                 remainingPages,
-                estimatedMaxPages ? estimatedMaxPages - page + 1 : 999  // 최대 페이지를 넘지 않도록 제한
+                estimatedMaxPages ? estimatedMaxPages - page + 1 : SEARCH_CONSTANTS.MAX_PAGES
             );
 
             if (dynamicBatchSize <= 0) {
@@ -243,18 +257,11 @@ export async function searchFights(fights, report, reportCode, api, region, part
             for (let retry = 0; retry <= MAX_RETRIES; retry++) {
                 try {
                     batchResults = await getEncounterRankingsBatch(
-                        api,
-                        fight.encounterID,
-                        fight.difficulty,
-                        fight.size,
-                        region,
+                        fightQuery,
                         page,
                         dynamicBatchSize,
-                        partition,
-                        rankingCache,
-                        hasCache ? null : async () => await updateCacheDisplay(rankingCache),
-                        partitionName,
-                        signal
+                        context,
+                        hasCache ? null : async () => await updateCacheDisplay(rankingCache)
                     );
                     break; // 성공
 
@@ -263,7 +270,6 @@ export async function searchFights(fights, report, reportCode, api, region, part
                         // 재시도: 잠시 대기 후 재시도
                         console.warn(`[배치 실패 ${retry + 1}/${MAX_RETRIES + 1}] ${error.message}, 재시도...`);
                         await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
-                        if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
                     } else {
                         // 최종 실패: 전체 취소
                         console.error(`[배치 최종 실패] ${error.message}`);
@@ -283,8 +289,6 @@ export async function searchFights(fights, report, reportCode, api, region, part
                 fightRankingsData.push(rankings);
 
                 for (const ranking of rankings.rankings) {
-                    if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
-
                     if (!ranking || !ranking.report) {
                         console.warn('유효하지 않은 랭킹 항목:', ranking);
                         continue;
@@ -322,13 +326,10 @@ export async function searchFights(fights, report, reportCode, api, region, part
 
             const verifiedMatches = [];
             for (const match of fightMatches) {
-                if (signal.aborted) return { allMatches, allRankingsData, matchedFight, aborted: true };
-
                 const isVerified = await matcher.verifyRDPS(
                     match.ranking.report.code,
                     match.ranking.report.fightID,
-                    api,
-                    signal
+                    api
                 );
 
                 if (isVerified) {

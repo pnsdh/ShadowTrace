@@ -11,7 +11,8 @@ import { openSettingsModal, closeSettingsModal, openCacheModal, closeCacheModal,
 import { saveSettings, saveApiKeys, loadSavedApiKeys } from './settings.js';
 import { loadApiUsage } from './api.js';
 import { clearEncounterCache, clearAllCache, refreshCacheAndSearch, exportCache, importCache } from './cache-manager.js';
-import { detectRegion, detectPartition, filterAndPrepareFights, searchFights, handleSearchAbort } from './search.js';
+import { searchFights, handleSearchAbort } from './search.js';
+import { Report, EncounterQuery, SearchContext } from './models.js';
 
 // ===== 전역 상태 =====
 const rankingCache = new RankingCache();
@@ -91,19 +92,23 @@ async function startSearch() {
         api.resetUsageTracking();
 
         // 익명 로그 정보 가져오기
-        const report = await api.getAnonymousReport(reportCode);
+        const reportData = await api.getAnonymousReport(reportCode);
         if (signal.aborted) return;
 
+        // Report 인스턴스 생성
+        const report = new Report(reportData, reportCode);
+
         // Fight 필터링
-        const { fights, specifiedFightId, allFights } = filterAndPrepareFights(report, fightId);
+        const { fights, specifiedFightId, allFights } = report.filterFights(fightId);
 
         // Region 및 Partition 감지
-        const region = detectRegion(report);
-        const partition = detectPartition(report, region);
+        const region = report.getRegion();
+        const partition = report.getPartition(region);
 
         // Encounter의 정확한 파티션 이름 조회
         showLoading('파티션 정보', '조회 중...');
-        const partitions = await api.getEncounterPartitions(fights[0].encounterID);
+        const firstFight = report.getFirstFight();
+        const partitions = await api.getEncounterPartitions(firstFight.encounterID);
         if (signal.aborted) return;
 
         const partitionData = partitions.find(p => p.id === partition);
@@ -117,15 +122,11 @@ async function startSearch() {
         const regionText = `(${region || '전체'}, ${partitionText})`;
         showLoading(`${fights.length}개의 전투 ${regionText}`, '분석 중...');
 
+        // EncounterQuery 생성 (첫 번째 fight 기준)
+        const encounterQuery = EncounterQuery.fromFight(firstFight, region, partition, partitionName);
+
         // 검색 파라미터 저장 (재검색용)
-        lastSearchParams = {
-            encounterId: fights[0].encounterID,
-            difficulty: fights[0].difficulty,
-            size: fights[0].size,
-            region: region,
-            partition: partition,
-            reportStartTime: report.startTime
-        };
+        lastSearchParams = encounterQuery.toSearchParams(report.startTime);
 
         // 검색 시작 (새 캐시 추적)
         rankingCache.startSearch();
@@ -143,6 +144,9 @@ async function startSearch() {
             fightsList = allFights;
         }
 
+        // SearchContext 생성
+        const context = new SearchContext(api, rankingCache);
+
         // 진행 상황 콜백: 여러 파이트 검색 모드에서 즉시 결과 표시
         let isFirstResult = true;
         const progressCallback = isMultipleSearchMode ? async (matches, rankingsData, fight) => {
@@ -154,24 +158,21 @@ async function startSearch() {
                 partition: partition
             };
 
-            await displayResults(matches, api, rankingsData, rankingCache, matchedFightInfo, reportCode, !isFirstResult);
+            await displayResults(matches, api, rankingsData, rankingCache, matchedFightInfo, report.code, !isFirstResult);
             isFirstResult = false;
         } : null;
 
         // 공통 검색 함수 사용
         const result = await searchFights(
-            fightsList,
             report,
-            reportCode,
-            api,
-            region,
-            partition,
-            partitionName,
-            signal,
-            rankingCache,
-            0,
-            isMultipleSearchMode,
-            progressCallback
+            encounterQuery,
+            context,
+            {
+                fights: fightsList,
+                startIndex: 0,
+                multipleSearchMode: isMultipleSearchMode,
+                progressCallback
+            }
         );
 
         if (result.aborted) {
@@ -203,7 +204,7 @@ async function startSearch() {
                 partition: partition
             } : null);
 
-            await displayResults(result.allMatches, api, result.allRankingsData, rankingCache, matchedFightInfo, reportCode);
+            await displayResults(result.allMatches, api, result.allRankingsData, rankingCache, matchedFightInfo, report.code);
         }
 
     } catch (error) {
