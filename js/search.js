@@ -30,7 +30,7 @@ export async function searchFights(report, encounterQuery, context, options = {}
     } = options;
 
     if (!fights || !Array.isArray(fights)) {
-        throw new Error('options.fights is required and must be an array');
+        throw new Error('options.fights가 필요하며 배열이어야 합니다');
     }
 
     const { api, rankingCache } = context;

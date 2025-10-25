@@ -3,7 +3,7 @@
  * 프로그램 전반에서 사용되는 데이터 구조를 캡슐화합니다
  */
 
-import { SEARCH_CONSTANTS, ERROR_MESSAGES } from './constants.js';
+import { SEARCH_CONSTANTS } from './constants.js';
 
 /**
  * 검색 컨텍스트 (의존성 주입용)
@@ -88,7 +88,7 @@ export class Report {
                     allFights: allFights
                 };
             }
-            throw new Error(ERROR_MESSAGES.NO_BOSS_FIGHTS);
+            throw new Error('보스 전투를 찾을 수 없습니다.');
         }
 
         if (fightId !== null && fightId !== undefined) {

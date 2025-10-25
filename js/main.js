@@ -3,7 +3,7 @@
  * 메인 엔트리 포인트
  */
 
-import { STORAGE_KEYS, ERROR_MESSAGES } from './constants.js';
+import { STORAGE_KEYS } from './constants.js';
 import { RankingCache } from './cache.js';
 import { FFLogsAPI } from './api.js';
 import { showLoading, hideLoading, showError, hideError, updateCacheDisplay, displayResults } from './ui.js';
@@ -34,19 +34,19 @@ async function startSearch() {
     const anonymousUrl = document.getElementById('anonymousUrl').value.trim();
 
     if (!clientId || !clientSecret) {
-        showError(ERROR_MESSAGES.NO_API_KEYS);
+        showError('API 설정에서 Client ID와 Client Secret을 입력한 뒤 사용하세요.');
         return;
     }
 
     if (!anonymousUrl) {
-        showError(ERROR_MESSAGES.NO_ANONYMOUS_URL);
+        showError('익명 로그 URL을 입력하세요.');
         return;
     }
 
     // URL에서 report code 추출
     const codeMatch = anonymousUrl.match(/reports\/(a:[A-Za-z0-9]+)/);
     if (!codeMatch) {
-        showError(ERROR_MESSAGES.INVALID_ANONYMOUS_URL);
+        showError('올바른 익명 로그 URL이 아닙니다. (a:로 시작해야 합니다)');
         return;
     }
 
@@ -211,7 +211,7 @@ async function startSearch() {
         }
         hideLoading();
         showError(error.message);
-        console.error('Error:', error);
+        console.error('오류:', error);
     }
 }
 
@@ -225,7 +225,7 @@ async function stopSearch() {
 
         await handleSearchAbort(rankingCache, globalApiInstance);
         hideLoading();
-        showError(ERROR_MESSAGES.SEARCH_ABORTED);
+        showError('검색이 중단되었습니다.');
     }
 }
 
