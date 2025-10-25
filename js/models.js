@@ -3,6 +3,8 @@
  * 프로그램 전반에서 사용되는 데이터 구조를 캡슐화합니다
  */
 
+import { SEARCH_CONSTANTS } from './constants.js';
+
 /**
  * 검색 컨텍스트 (의존성 주입용)
  */
@@ -55,15 +57,15 @@ export class Report {
             return this.rankings.data[0].partition;
         }
 
-        // 한국 서버는 기본 파티션 1
+        // 한국 서버는 기본 파티션
         if (region === 'KR') {
-            return 1;
+            return SEARCH_CONSTANTS.KR_PARTITION;
         }
 
         // 파티션 정보가 없는 경우 zone에서 기본값 찾기
         if (this.zone?.partitions) {
             const defaultPartition = this.zone.partitions.find(p => p.default);
-            return defaultPartition?.id || 1;
+            return defaultPartition?.id || SEARCH_CONSTANTS.DEFAULT_PARTITION;
         }
 
         return null;
@@ -74,6 +76,19 @@ export class Report {
      */
     filterFights(fightId = null) {
         let allFights = this.fights.filter(f => f.encounterID > 0); // 모든 보스 전투
+
+        // 'last' 처리
+        if (fightId === 'last') {
+            if (allFights.length > 0) {
+                const lastFight = allFights[allFights.length - 1];
+                return {
+                    fights: [lastFight],
+                    specifiedFightId: lastFight.id,
+                    allFights: allFights
+                };
+            }
+            throw new Error('보스 전투를 찾을 수 없습니다.');
+        }
 
         if (fightId !== null && fightId !== undefined) {
             // 특정 Fight ID가 지정된 경우

@@ -1,88 +1,12 @@
 import { SEARCH_CONSTANTS, ANONYMOUS_NAMES } from './constants.js';
 import { LogMatcher } from './matcher.js';
 import { showLoading, updateCacheDisplay } from './ui.js';
-import { getEncounterRankings, getEncounterRankingsBatch, findMaxPages } from './rankings.js';
+import { getEncounterRankingsBatch, findMaxPages } from './rankings.js';
 
 /**
  * 검색 로직 모듈
  * FFLogs 데이터 검색 및 매칭 관련 핵심 로직을 담당합니다
  */
-
-/**
- * 리포트에서 region을 자동 감지합니다
- * @param {Object} report - FFLogs 리포트 데이터
- * @returns {string|null} 감지된 region (KR, NA, EU 등) 또는 null
- */
-export function detectRegion(report) {
-    if (report.rankings && report.rankings.data && report.rankings.data.length > 0) {
-        const rankingData = report.rankings.data[0];
-        // roles 안의 첫 번째 캐릭터에서 region 추출
-        for (const roleKey in rankingData.roles || {}) {
-            const role = rankingData.roles[roleKey];
-            if (role.characters && role.characters.length > 0) {
-                const firstChar = role.characters[0];
-                if (firstChar.server && firstChar.server.region) {
-                    return firstChar.server.region;
-                }
-            }
-        }
-    }
-
-    return null;
-}
-
-/**
- * 리포트에서 partition 번호를 추출합니다
- * @param {Object} report - FFLogs 리포트 데이터
- * @param {string|null} region - 감지된 region
- * @returns {number} partition 번호
- */
-export function detectPartition(report, region) {
-    // rankings 데이터에서 partition 추출
-    if (report.rankings && report.rankings.data && report.rankings.data.length > 0) {
-        return report.rankings.data[0].partition;
-    }
-
-    // partition이 없으면 기본값 사용
-    return (region === 'KR') ? SEARCH_CONSTANTS.KR_PARTITION : SEARCH_CONSTANTS.DEFAULT_PARTITION;
-}
-
-/**
- * Fight 목록을 필터링하고 준비합니다
- * @param {Object} report - FFLogs 리포트 데이터
- * @param {number|string|null} fightId - Fight ID (숫자, 'last', 또는 null)
- * @returns {Object} { fights, specifiedFightId, allFights }
- */
-export function filterAndPrepareFights(report, fightId) {
-    let allFights = report.fights.filter(f => f.encounterID > 0); // 모든 보스 전투
-    let fights = [...allFights]; // 복사본
-    let specifiedFightId = fightId;
-
-    // 'last' 처리
-    if (fightId === 'last') {
-        if (fights.length > 0) {
-            fightId = fights[fights.length - 1].id;
-            specifiedFightId = fightId;
-        } else {
-            throw new Error('보스 전투를 찾을 수 없습니다.');
-        }
-    }
-
-    // 지정된 fight가 있으면 우선 검색
-    if (fightId) {
-        const specifiedFights = fights.filter(f => f.id === fightId);
-        if (specifiedFights.length === 0) {
-            throw new Error(`Fight ID ${fightId}를 찾을 수 없습니다.`);
-        }
-        fights = specifiedFights;
-    }
-
-    if (fights.length === 0) {
-        throw new Error('분석할 보스 전투를 찾을 수 없습니다.');
-    }
-
-    return { fights, specifiedFightId, allFights };
-}
 
 /**
  * 공통 파이트 검색 함수
