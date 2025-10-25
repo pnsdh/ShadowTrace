@@ -373,9 +373,12 @@ export async function searchFights(fights, report, reportCode, api, region, part
  * @param {RankingCache} rankingCache - 랭킹 캐시 인스턴스
  * @returns {AbortController|null} null 반환 (초기화)
  */
-export async function handleSearchAbort(abortController, rankingCache) {
+export async function handleSearchAbort(abortController, rankingCache, api = null) {
     if (abortController) {
         abortController.abort();
+        if (api) {
+            api.cancelAll();
+        }
         await rankingCache.abortSearch();
         await updateCacheDisplay(rankingCache);
         return null;

@@ -18,10 +18,27 @@ export class FFLogsAPI {
         this.updateInterval = null;
         this.isWaiting = false;
 
+        // 중앙 취소 관리
+        this.controller = null;
+
         // 주기적 업데이트 시작 (옵션)
         if (startPeriodicUpdate) {
             this.startPeriodicUpdate();
         }
+    }
+
+    cancelAll() {
+        if (this.controller) {
+            this.controller.abort();
+            this.controller = null;
+        }
+    }
+
+    _getSignal() {
+        if (!this.controller) {
+            this.controller = new AbortController();
+        }
+        return this.controller.signal;
     }
 
     async getAccessToken() {
@@ -45,7 +62,9 @@ export class FFLogsAPI {
         return this.accessToken;
     }
 
-    async query(graphqlQuery, variables = {}, requestCount = 1, signal = null) {
+    async query(graphqlQuery, variables = {}, requestCount = 1) {
+        const signal = this._getSignal();
+
         // 포인트 체크: 예상 포인트 소모량 계산
         const estimatedPoints = requestCount * RATE_LIMIT_CONSTANTS.POINTS_PER_REQUEST;
         const availablePoints = this.getAvailablePointSlots();
@@ -71,7 +90,7 @@ export class FFLogsAPI {
             let remainingSeconds = Math.ceil(waitTime / 1000);
             while (remainingSeconds > 0) {
                 // 중단 신호 체크
-                if (signal && signal.aborted) {
+                if (signal.aborted) {
                     this.isWaiting = false;
                     this.startPeriodicUpdate();
                     updateApiUsageDisplay(this);
@@ -100,7 +119,8 @@ export class FFLogsAPI {
             body: JSON.stringify({
                 query: graphqlQuery,
                 variables: variables
-            })
+            }),
+            signal
         });
 
         if (!response.ok) {
@@ -172,7 +192,7 @@ export class FFLogsAPI {
         }
     }
 
-    async getAnonymousReport(code, signal = null) {
+    async getAnonymousReport(code) {
         const query = `
             query($code: String!) {
                 reportData {
@@ -221,7 +241,7 @@ export class FFLogsAPI {
             }
         `;
 
-        const data = await this.query(query, { code }, 1, signal);
+        const data = await this.query(query, { code }, 1);
 
         // Rate limit 정보 업데이트
         if (data.rateLimitData) {
@@ -231,7 +251,7 @@ export class FFLogsAPI {
         return data.reportData.report;
     }
 
-    async getEncounterPartitions(encounterId, signal = null) {
+    async getEncounterPartitions(encounterId) {
         const query = `
             query {
                 worldData {
@@ -247,11 +267,11 @@ export class FFLogsAPI {
             }
         `;
 
-        const data = await this.query(query, {}, 1, signal);
+        const data = await this.query(query, {}, 1);
         return data.worldData.encounter.zone.partitions;
     }
 
-    async getReportPlayers(reportCode, fightID, signal = null) {
+    async getReportPlayers(reportCode, fightID) {
         const basicQuery = `
             query($code: String!) {
                 reportData {
@@ -274,7 +294,7 @@ export class FFLogsAPI {
             }
         `;
 
-        const basicData = await this.query(basicQuery, { code: reportCode }, 1, signal);
+        const basicData = await this.query(basicQuery, { code: reportCode }, 1);
 
         // 해당 fight 참여 플레이어 ID 목록
         const fight = basicData.reportData.report.fights?.[0];
@@ -287,7 +307,7 @@ export class FFLogsAPI {
         return { masterData: { actors: players } };
     }
 
-    async getReportRDPS(reportCode, fightID, signal = null) {
+    async getReportRDPS(reportCode, fightID) {
         const query = `
             query($code: String!) {
                 reportData {
@@ -298,7 +318,7 @@ export class FFLogsAPI {
             }
         `;
 
-        const data = await this.query(query, { code: reportCode }, 1, signal);
+        const data = await this.query(query, { code: reportCode }, 1);
         const tableData = data.reportData.report.table;
 
         // table 데이터에서 RDPS 추출

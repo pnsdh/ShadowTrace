@@ -91,7 +91,7 @@ async function startSearch() {
         api.resetUsageTracking();
 
         // 익명 로그 정보 가져오기
-        const report = await api.getAnonymousReport(reportCode, signal);
+        const report = await api.getAnonymousReport(reportCode);
         if (signal.aborted) return;
 
         // Fight 필터링
@@ -103,7 +103,7 @@ async function startSearch() {
 
         // Encounter의 정확한 파티션 이름 조회
         showLoading('파티션 정보', '조회 중...');
-        const partitions = await api.getEncounterPartitions(fights[0].encounterID, signal);
+        const partitions = await api.getEncounterPartitions(fights[0].encounterID);
         if (signal.aborted) return;
 
         const partitionData = partitions.find(p => p.id === partition);
@@ -227,7 +227,7 @@ async function startSearch() {
  */
 async function stopSearch() {
     if (currentSearchAbortController) {
-        currentSearchAbortController = await handleSearchAbort(currentSearchAbortController, rankingCache);
+        currentSearchAbortController = await handleSearchAbort(currentSearchAbortController, rankingCache, globalApiInstance);
         hideLoading();
         showError('검색이 중단되었습니다.');
     }
