@@ -22,8 +22,7 @@ export function detectRegion(report) {
             if (role.characters && role.characters.length > 0) {
                 const firstChar = role.characters[0];
                 if (firstChar.server && firstChar.server.region) {
-                    const region = firstChar.server.region;
-                    return region;
+                    return firstChar.server.region;
                 }
             }
         }
@@ -33,31 +32,19 @@ export function detectRegion(report) {
 }
 
 /**
- * 리포트에서 partition을 결정합니다
+ * 리포트에서 partition 번호를 추출합니다
  * @param {Object} report - FFLogs 리포트 데이터
  * @param {string|null} region - 감지된 region
- * @returns {Object} { partition: number, partitionName: string|null }
+ * @returns {number} partition 번호
  */
 export function detectPartition(report, region) {
     // rankings 데이터에서 partition 추출
     if (report.rankings && report.rankings.data && report.rankings.data.length > 0) {
-        const partition = report.rankings.data[0].partition;
-
-        // zone.partitions에서 해당 partition의 이름 찾기
-        let partitionName = null;
-        if (report.zone && report.zone.partitions) {
-            const partitionInfo = report.zone.partitions.find(p => p.id === partition);
-            if (partitionInfo && partitionInfo.compactName) {
-                partitionName = partitionInfo.compactName;
-            }
-        }
-
-        return { partition, partitionName };
+        return report.rankings.data[0].partition;
     }
 
     // partition이 없으면 기본값 사용
-    const partition = (region === 'KR') ? SEARCH_CONSTANTS.KR_PARTITION : SEARCH_CONSTANTS.DEFAULT_PARTITION;
-    return { partition, partitionName: null };
+    return (region === 'KR') ? SEARCH_CONSTANTS.KR_PARTITION : SEARCH_CONSTANTS.DEFAULT_PARTITION;
 }
 
 /**

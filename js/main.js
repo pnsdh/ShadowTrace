@@ -99,9 +99,15 @@ async function startSearch() {
 
         // Region 및 Partition 감지
         const region = detectRegion(report);
-        const partitionInfo = detectPartition(report, region);
-        const partition = partitionInfo.partition;
-        const partitionName = partitionInfo.partitionName;
+        const partition = detectPartition(report, region);
+
+        // Encounter의 정확한 파티션 이름 조회
+        showLoading('파티션 정보', '조회 중...');
+        const partitions = await api.getEncounterPartitions(fights[0].encounterID, signal);
+        if (signal.aborted) return;
+
+        const partitionData = partitions.find(p => p.id === partition);
+        const partitionName = partitionData?.compactName || null;
 
         // 파티션 표시 생성
         let partitionText = `P${partition}`;

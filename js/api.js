@@ -231,6 +231,26 @@ export class FFLogsAPI {
         return data.reportData.report;
     }
 
+    async getEncounterPartitions(encounterId, signal = null) {
+        const query = `
+            query {
+                worldData {
+                    encounter(id: ${encounterId}) {
+                        zone {
+                            partitions {
+                                id
+                                compactName
+                            }
+                        }
+                    }
+                }
+            }
+        `;
+
+        const data = await this.query(query, {}, 1, signal);
+        return data.worldData.encounter.zone.partitions;
+    }
+
     async getReportPlayers(reportCode, fightID, signal = null) {
         const basicQuery = `
             query($code: String!) {
